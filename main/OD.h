@@ -68,6 +68,9 @@ void setODValue(can_od_t* OD, uint16_t index, uint16_t subindex, int value);
 /* Frees up the allocated memory of the full object dictionary */
 void freeOD(can_od_t* OD);
 
+/* Creates a hash for the OD */
+unsigned int hash(uint16_t index, uint8_t subindex, unsigned int table_size);
+
 /* 
 Adds an can_od_object_t object to can_od_t 
 and stores it to the position of the hash 

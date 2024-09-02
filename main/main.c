@@ -53,15 +53,40 @@ void check_bus_task(void *arg){
     }
 }
 
+/*
+Configures all the OD objects. Change the values here if the FW should have
+different values by default. The values are volatile here because they are 
+always loaded from the bootloader at startup and not from EEPROM 
+*/
+void load_OD(){
+    can_od_t* OD = canNode.OD;
+    /* IDENTITY OBJECT */
+    insertObject(OD, 0x1018, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 5);
+    insertObject(OD, 0x1018, 0x1, UNSIGNED32, READ_ONLY, VOLATILE, 0);
+    insertObject(OD, 0x1018, 0x2, UNSIGNED32, READ_ONLY, VOLATILE, 1111111111);
+    insertObject(OD, 0x1018, 0x3, UNSIGNED32, READ_ONLY, VOLATILE, 808517632);
+    insertObject(OD, 0x1018, 0x4, UNSIGNED32, READ_ONLY, VOLATILE, 1);
+
+    /* MPL values */
+    insertObject(OD, 0x2011, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
+    insertObject(OD, 0x2011, 0x1, UNSIGNED16, READ_WRITE, VOLATILE, 0);
+
+    /* Physical unit */
+    insertObject(OD, 0x6131, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
+    insertObject(OD, 0x6131, 0x1, UNSIGNED32, READ_ONLY, VOLATILE, 0);
+
+    /* Number of Decimal Positions */
+    insertObject(OD, 0x6132, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
+    insertObject(OD, 0x6132, 0x1, UNSIGNED8, READ_ONLY, VOLATILE, 4);
+
+    /* TPDO 1 Communication Parameter*/
+    insertObject(OD, 0x1800, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 2);
+    insertObject(OD, 0x1800, 0x1, UNSIGNED16, CONST, VOLATILE, 0x180+canNode.id);
+}
+
 /* MAIN TASK THAT CONTAINS ALL OTHER SUBTASKS */
 void main_task(void *arg){
-    can_od_t* OD = initOD(10);
-    insertObject(OD, 0x1018, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 5);
-    insertObject(OD, 0x1018, 0x1, UNSIGNED32, READ_ONLY, VOLATILE, 123456);
-    insertObject(OD, 0x1018, 0x2, UNSIGNED32, READ_ONLY, VOLATILE, 1602109);
-    insertObject(OD, 0x1018, 0x3, UNSIGNED32, READ_ONLY, VOLATILE, 0);
-    insertObject(OD, 0x1018, 0x4, UNSIGNED32, READ_ONLY, VOLATILE, 1);
-    
+    can_od_t* OD = initOD(50);
     esp_task_wdt_add(mainTaskHandle);
     
     can_config_module(); // configuration in CANopen.h
@@ -70,6 +95,10 @@ void main_task(void *arg){
     /* Initialize CANopen node */
     can_node_init(&canNode);
     canNode.OD = OD; // adds the priorly generated OD to node
+    /* Loads and writes all the objects of the OD to structure ODv */
+    load_OD();
+    /* Send updated NMT status*/
+    send_nmt_state(&canNode);
     
     ESP_LOGI("MAIN_TASK", "Node configured with node id %u", canNode.id);
 

@@ -88,9 +88,6 @@ void can_node_init(can_node_t *node){
         ESP_LOGE(CAN_TAG, "Invalid node cannot set to pre-operational");
         return;
     };
-
-    /* Send updated NMT status*/
-    send_nmt_state(node);
 }
 
 /* Get*/
