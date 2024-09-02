@@ -6,6 +6,23 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define OD_DEVICE_TYPE          0x1000
+#define OD_ERROR_REGISTER       0x1001
+#define OD_IDENTITY_OBJECT      0x1018
+#define OD_TPDO1_PARAMETER      0x1800
+#define OD_TPDO2_PARAMETER      0x1801
+#define OD_TPDO3_PARAMETER      0x1802
+#define OD_TPDO4_PARAMETER      0x1803
+#define OD_TPDO1_MAPPING        0x1A00
+#define OD_TPDO2_MAPPING        0x1A01
+#define OD_TPDO3_MAPPING        0x1A02
+#define OD_TPDO4_MAPPING        0x1A03
+#define OD_MPL_VALUE_INDEX      0x2011
+#define OD_NODE_ID              0x2012
+#define OD_PYH_UNIT             0x6131
+#define OD_DEC_POSITIONS        0x6132
+#define OD_PV_DIELECTRIC        0x7100
+
 /* 
 Available data types (list not extensive but sufficient form my use).
 When adding new data types, be sure to also change the switch blocks in 
@@ -60,7 +77,7 @@ dictionary and returns pointer
 can_od_t* initOD(int numberObjects);
 
 /* Retuns the pointer of the defined OD object */
-void* getODValue(can_od_t* OD, uint16_t index, uint16_t subindex);
+can_od_object_t* getODentry(can_od_t* OD, uint16_t index, uint16_t subindex);
 
 /* Change the value of an object dictionary object */
 void setODValue(can_od_t* OD, uint16_t index, uint16_t subindex, int value);

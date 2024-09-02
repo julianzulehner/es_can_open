@@ -17,6 +17,7 @@
 #define RX_INTERRUPT_PRIO 5
 #define CHECK_BUS_PRIO 1
 
+
 /* task periods */
 #define CHECK_CAN_BUS_PERIOD pdMS_TO_TICKS(3000)
 
@@ -60,17 +61,49 @@ always loaded from the bootloader at startup and not from EEPROM
 */
 void load_OD(){
     can_od_t* OD = canNode.OD;
+    /* DEVICE TYPE */
+    insertObject(OD, OD_DEVICE_TYPE, 0x0, UNSIGNED32, READ_ONLY, VOLATILE, 1 << 17);
+
+    /* ERROR REGISTER */
+    insertObject(OD, OD_ERROR_REGISTER, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 0);
+
     /* IDENTITY OBJECT */
-    insertObject(OD, 0x1018, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 5);
-    insertObject(OD, 0x1018, 0x1, UNSIGNED32, READ_ONLY, VOLATILE, 0);
-    insertObject(OD, 0x1018, 0x2, UNSIGNED32, READ_ONLY, VOLATILE, 1111111111);
-    insertObject(OD, 0x1018, 0x3, UNSIGNED32, READ_ONLY, VOLATILE, 808517632);
-    insertObject(OD, 0x1018, 0x4, UNSIGNED32, READ_ONLY, VOLATILE, 1);
+    insertObject(OD, OD_IDENTITY_OBJECT, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 5);
+    insertObject(OD, OD_IDENTITY_OBJECT, 0x1, UNSIGNED32, READ_ONLY, VOLATILE, 0);
+    insertObject(OD, OD_IDENTITY_OBJECT, 0x2, UNSIGNED32, READ_ONLY, VOLATILE, 1111111111);
+    insertObject(OD, OD_IDENTITY_OBJECT, 0x3, UNSIGNED32, READ_ONLY, VOLATILE, 808517632);
+    insertObject(OD, OD_IDENTITY_OBJECT, 0x4, UNSIGNED32, READ_ONLY, VOLATILE, 1);
 
     /* MPL values */
-    insertObject(OD, 0x2011, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
-    insertObject(OD, 0x2011, 0x1, UNSIGNED16, READ_WRITE, VOLATILE, 0);
+    insertObject(OD, OD_MPL_VALUE_INDEX, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
+    insertObject(OD, OD_MPL_VALUE_INDEX, 0x1, UNSIGNED16, READ_WRITE, VOLATILE, 0);
 
+    /* Node ID */
+    insertObject(OD, OD_NODE_ID, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, CAN_NODE_ID);
+
+    /* TPDO 1 Communication Parameter*/
+    insertObject(OD, OD_TPDO1_PARAMETER, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, 2);
+    insertObject(OD, OD_TPDO1_PARAMETER, 0x1, UNSIGNED16, READ_WRITE, PERSISTENT, 0x180+canNode.id);
+    insertObject(OD, OD_TPDO1_PARAMETER, 0x2, UNSIGNED8, READ_WRITE, PERSISTENT, 1);
+
+    /* TPDO 2 Communication Parameter*/
+    insertObject(OD, OD_TPDO2_PARAMETER, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, 0);
+
+    /* TPDO 3 Communication Parameter*/
+    insertObject(OD, OD_TPDO3_PARAMETER, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, 0);
+
+    /* TPDO 4 Communication Parameter*/
+    insertObject(OD, OD_TPDO4_PARAMETER, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, 0);
+
+    /* TPDO 1 MAPPING */
+    insertObject(OD, OD_TPDO1_MAPPING, 0x0, UNSIGNED8, CONST, VOLATILE, 3);
+    insertObject(OD, OD_TPDO1_MAPPING, 0x1, UNSIGNED32, READ_WRITE, PERSISTENT, 
+        OD_PV_DIELECTRIC << 16 | 0x0 << 8 | 0x4);
+    insertObject(OD, OD_TPDO1_MAPPING, 0x2, UNSIGNED32, READ_WRITE, PERSISTENT,
+        OD_MPL_VALUE_INDEX << 16 | 0x1 << 8 | 0x2);
+    insertObject(OD, OD_TPDO1_MAPPING, 0x3, UNSIGNED32, READ_WRITE, PERSISTENT,
+        OD_ERROR_REGISTER << 16 | 0x0 << 8 | 0x1);
+    
     /* Physical unit */
     insertObject(OD, 0x6131, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
     insertObject(OD, 0x6131, 0x1, UNSIGNED32, READ_ONLY, VOLATILE, 0);
@@ -79,14 +112,13 @@ void load_OD(){
     insertObject(OD, 0x6132, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
     insertObject(OD, 0x6132, 0x1, UNSIGNED8, READ_ONLY, VOLATILE, 4);
 
-    /* TPDO 1 Communication Parameter*/
-    insertObject(OD, 0x1800, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 2);
-    insertObject(OD, 0x1800, 0x1, UNSIGNED16, CONST, VOLATILE, 0x180+canNode.id);
+    /* Process Values 0x7100 = dielectric constant */
+    insertObject(OD, OD_PV_DIELECTRIC, 0x0, UNSIGNED16, READ_ONLY, VOLATILE, 65535);
 }
 
 /* MAIN TASK THAT CONTAINS ALL OTHER SUBTASKS */
 void main_task(void *arg){
-    can_od_t* OD = initOD(50);
+    can_od_t* OD = initOD(117);
     esp_task_wdt_add(mainTaskHandle);
     
     can_config_module(); // configuration in CANopen.h

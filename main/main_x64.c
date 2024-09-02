@@ -6,25 +6,9 @@
 #define SIZE 50
 
 int main(){
-    int hashValue;
-    hashValue = hash(0x1018, 0x00, SIZE);
-    printf("%u\n", hashValue);
-    hashValue = hash(0x1018, 0x01, SIZE);
-    printf("%u\n", hashValue);
-    hashValue = hash(0x1018, 0x02, SIZE);
-    printf("%u\n", hashValue);
-    hashValue = hash(0x1018, 0x03, SIZE);
-    printf("%u\n", hashValue);
-    hashValue = hash(0x1018, 0x04, SIZE);
-    printf("%u\n", hashValue);
-    hashValue = hash(0x2011, 0x0, SIZE);
-    printf("%u\n", hashValue);
-    hashValue = hash(0x2011, 0x1, SIZE);
-    printf("%u\n", hashValue);
-    hashValue = hash(0x1800, 0x0, SIZE);
-    printf("%u\n", hashValue);
-    hashValue = hash(0x1800, 0x01, SIZE);
-    printf("%u\n", hashValue);
+    for(int i=0; i<=4; i++){
+        printf("%u\n",i);
+    }
 
     return 0;
 }

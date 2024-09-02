@@ -27,31 +27,12 @@ can_od_t* initOD(int numberObjects){
     return OD;
 }
 
-/* Allocates the memory according to the CAN_DATA_TYPE */
-void* allocateValue(CAN_DATA_TYPE dataType){
-
-    void* valuePtr = NULL;
-    switch(dataType){
-        case BOOLEAN:
-        case UNSIGNED8:
-            valuePtr = (uint8_t*)malloc(sizeof(uint8_t));
-            break;
-        case UNSIGNED16:
-            valuePtr = (uint16_t*)malloc(sizeof(uint16_t));
-            break;
-        case UNSIGNED32:
-            valuePtr = (uint32_t*)malloc(sizeof(uint32_t));
-            break;
-        case INTEGER8:
-            valuePtr = (int8_t*)malloc(sizeof(int8_t));
-            break;
-        case INTEGER16:
-            valuePtr = (int16_t*)malloc(sizeof(int16_t));
-            break;
-        case INTEGER32:
-            valuePtr = (int32_t*)malloc(sizeof(int32_t));
-            break;
-    }
+/* 
+Allocates the memory for the value itself. For simplicity it will be a 32 bit
+unsigned integer for all objects independent of the value itself.
+ */
+void* allocateValue(){
+    uint32_t* valuePtr = (uint32_t*)malloc(sizeof(uint32_t));
     return valuePtr;
 }
 
@@ -97,7 +78,7 @@ void insertObject(
     int value){
 
     int key = hash(index, subindex, OD->numberObjects);
-    void* valuePtr = allocateValue(dataType);
+    void* valuePtr = allocateValue();
 
     if(valuePtr == NULL){
         printf("Error: Object Dictionary value could not be allocated\n");
@@ -143,11 +124,10 @@ void freeOD(can_od_t* OD){
 }
 
 /* Retuns the pointer of the defined OD object */
-void* getODValue(can_od_t* OD, uint16_t index, uint16_t subindex){
+can_od_object_t* getODentry(can_od_t* OD, uint16_t index, uint16_t subindex){
     int key = hash(index, subindex, OD->numberObjects);
     if(OD->odObjects[key].value){
-        void* value = OD->odObjects[key].value;
-        return value; 
+        return &OD->odObjects[key];
     } else { 
         printf("ERROR: Object %X.%X not supported\n",index, subindex);
         return NULL;
