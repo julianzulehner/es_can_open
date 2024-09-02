@@ -11,12 +11,15 @@ unsigned int hash(uint16_t index, uint8_t subindex, unsigned int table_size) {
 Allocates the required memory for the object 
 dictionary and returns pointer 
 */
-can_od_t* initOD(int numberObjects){
+can_od_t* initOD(int numberObjects, int numberPersistentObjects){
     can_od_t* OD = (can_od_t*)malloc(sizeof(can_od_t));
     OD->odObjects = (can_od_object_t*)malloc(
         numberObjects * sizeof(can_od_object_t));
     OD->numberObjects = numberObjects;
-    if(OD->odObjects == NULL){
+    OD->persistentObjectIds = (uint32_t*)calloc(
+        numberPersistentObjects, sizeof(uint32_t));
+    OD->numberPersistentObjects = numberPersistentObjects;
+    if((OD->odObjects) == NULL || (OD->persistentObjectIds == NULL)){
         printf("ERROR: Memory allocation of object dictionary failed");
         free(OD);
         return NULL;
@@ -37,7 +40,7 @@ uint32_t* allocateValue(){
 }
 
 /* Writes the data to the pointer type */
-void writeValue(void* valuePtr, uint16_t dataType, int value) {
+void writeValue(uint32_t* valuePtr, uint16_t dataType, int value) {
     *(int32_t*)valuePtr = (int32_t)value;
 }
 
@@ -55,7 +58,7 @@ void insertObject(
     uint32_t value){
 
     int key = hash(index, subindex, OD->numberObjects);
-    uint32_t valuePtr = allocateValue();
+    uint32_t* valuePtr = allocateValue();
 
     if(valuePtr == NULL){
         printf("Error: Object Dictionary value could not be allocated\n");
@@ -89,6 +92,17 @@ void insertObject(
     OD->odObjects[key].access = access;
     OD->odObjects[key].persistence = persistence;
     OD->odObjects[key].value = valuePtr;
+
+    // Add to list of persistent values if persistent
+    if(persistence == PERSISTENT){
+        for(int i=0; i < OD->numberPersistentObjects; i++){
+            if(OD->persistentObjectIds[i] == 0){
+                OD->persistentObjectIds[i] = index << 8 | subindex;
+                break;
+            }
+                
+        }
+    }
 }
 
 /* Frees up the allocated memory of the full object dictionary */
@@ -97,7 +111,9 @@ void freeOD(can_od_t* OD){
         if(OD->odObjects[i].value != NULL){
             free(OD->odObjects[i].value);
         }
+
     }
+    free(OD->persistentObjectIds);
     free(OD->odObjects);
 }
 

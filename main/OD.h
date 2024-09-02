@@ -67,14 +67,16 @@ typedef struct {
 /* Structure that holds the full object dictionary */
 typedef struct{
     can_od_object_t* odObjects;
-    int16_t numberObjects;
+    uint16_t numberObjects;
+    uint32_t* persistentObjectIds;
+    uint16_t numberPersistentObjects;
 } can_od_t;
 
 /* 
 Allocates the required memory for the object 
 dictionary and returns pointer 
 */
-can_od_t* initOD(int numberObjects);
+can_od_t* initOD(int numberObjects, int numberPersistentObjects);
 
 /* Retuns the pointer of the defined OD object */
 can_od_object_t* getODentry(can_od_t* OD, uint16_t index, uint16_t subindex);

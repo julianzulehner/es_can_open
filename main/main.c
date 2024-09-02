@@ -9,6 +9,8 @@
 #include "CANopen.h"
 #include "esp_task_wdt.h"
 #include "OD.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 /*************** DEFINITIONS ***************/
 
@@ -21,6 +23,10 @@
 /* task periods */
 #define CHECK_CAN_BUS_PERIOD pdMS_TO_TICKS(3000)
 
+/* OD settings */
+#define NR_OBJECTS 117 // this is randomly selected to and has no hash collisions
+#define NR_PERSISTENT_OBJECTS 9 
+
 
 /*************** GLOBAL VARIABLES ***************/
 uint8_t reset = CAN_NO_RESET; // variable that can exit the main program. 
@@ -28,6 +34,7 @@ esp_err_t err;
 TaskHandle_t mainTaskHandle;
 can_node_t canNode; 
 twai_status_info_t controllerStatus;
+nvs_handle_t nvsHandle;
 
 /* INTERRUPT TASK FOR RECEIVING MESSAGES AND MESSAGE HANDLING */
 void rx_interrupt_task(void *arg){
@@ -116,13 +123,31 @@ void load_OD(){
     insertObject(OD, OD_PV_DIELECTRIC, 0x0, UNSIGNED16, READ_ONLY, VOLATILE, 65535);
 }
 
-void load_persistant_data(){
+void init_nvs(){
+    // Initialize NVS
+    err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased
+        // Retry nvs_flash_init
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK( err );
 
+    // Open
+    printf("\n");
+    printf("Opening Non-Volatile Storage (NVS) handle... ");
+    err = nvs_open("storage", NVS_READWRITE, &nvsHandle);
+    if (err != ESP_OK) {
+        printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+    } else {
+        printf("Done\n");
+    }
 }
 
 /* MAIN TASK THAT CONTAINS ALL OTHER SUBTASKS */
 void main_task(void *arg){
-    can_od_t* OD = initOD(117);
+    can_od_t* OD = initOD(NR_OBJECTS, NR_PERSISTENT_OBJECTS);
     esp_task_wdt_add(mainTaskHandle);
     
     can_config_module(); // configuration in CANopen.h
@@ -132,8 +157,8 @@ void main_task(void *arg){
     can_node_init(&canNode);
     canNode.OD = OD; // adds the priorly generated OD to node
     /* Loads and writes all the objects of the OD to structure ODv */
+    init_nvs();
     load_OD();
-    load_persistant_data();
 
     /* Send updated NMT status*/
     send_nmt_state(&canNode);
@@ -154,6 +179,7 @@ void main_task(void *arg){
     can_uninstall_module();
     freeOD(OD);
     vTaskDelete(NULL);
+    nvs_close(nvsHandle);
     esp_restart();
 
 }

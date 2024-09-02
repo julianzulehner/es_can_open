@@ -415,6 +415,12 @@ void change_nmt(can_node_t *node){
     }
     send_nmt_state(node);
 }
+
+/* Processes the LSS service such as node id change and baudrate change */
+void lss_service(can_node_t *node){
+    
+}
+
 /* Processes the incoming message and sends response if needed */
 void can_process_message(can_node_t *node){
     uint32_t identifier = node->rxMsg.identifier;
@@ -429,6 +435,8 @@ void can_process_message(can_node_t *node){
         sdo_service(node);
     } else if (identifier == CAN_SYNC){
         tpdo_service(node);
+    } else if (identifier == LSS_RX_COB_ID){
+        lss_service(node);
     }
 }
 

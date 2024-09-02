@@ -53,6 +53,9 @@
 #define SDO_EXP_TRANSFER        0x02
 #define SDO_DATA_SIZE_INDICATED 0x01
 
+#define LSS_RX_COB_ID           0x7E4
+#define LSS_TX_COB_ID           0x7E5
+
 #define OBJ_COB_ID_SYNC 0x1005
 #define OBJ_STORE_PARAM 0x1010
 #define OBJ_CONSUMER_HB_TIME 0x1016
