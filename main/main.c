@@ -116,6 +116,10 @@ void load_OD(){
     insertObject(OD, OD_PV_DIELECTRIC, 0x0, UNSIGNED16, READ_ONLY, VOLATILE, 65535);
 }
 
+void load_persistant_data(){
+
+}
+
 /* MAIN TASK THAT CONTAINS ALL OTHER SUBTASKS */
 void main_task(void *arg){
     can_od_t* OD = initOD(117);
@@ -129,6 +133,8 @@ void main_task(void *arg){
     canNode.OD = OD; // adds the priorly generated OD to node
     /* Loads and writes all the objects of the OD to structure ODv */
     load_OD();
+    load_persistant_data();
+
     /* Send updated NMT status*/
     send_nmt_state(&canNode);
     

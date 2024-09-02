@@ -17,6 +17,8 @@ If this is setup and you can see the last message as described, start the test.
 
 import can 
 import unittest 
+import time
+import pytest
 
 NODE_ID = 127
 NMT_RESET_NODE = 0x81
@@ -34,16 +36,13 @@ SERIAL_NUMBER = 1
 bus = None 
 tx_msg = can.Message(is_extended_id = False, is_remote_frame=False, is_error_frame=False)
 
+
 class TestCANopenMethods(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(self):
+    def setUp(self):
         global bus
-        print("Connecting to CAN inteface... ", end="")
         bus = can.Bus(channel=0, interface="ixxat", bitrate=125000)
-        print("Done")
-        print("Unit tests started... ", end="")
-    
+
     def test_set_operational(self):
         tx_msg.arbitration_id = 0x0
         tx_msg.dlc = 2
@@ -93,6 +92,7 @@ class TestCANopenMethods(unittest.TestCase):
         self.assertEqual(int.from_bytes(tx_msg.data[1:3], "little"), 0x1018)
         self.assertEqual(rx_msg.data[3], 0x1)
         self.assertEqual(int.from_bytes(rx_msg.data[4:8], "little"), VENDOR_ID)
+        self.assertEqual(rx_msg.arbitration_id, 0x580+NODE_ID)
 
         # Request PRDOCUT_CODE
         tx_msg.data = bytearray([0x40, 0x18, 0x10, 0x2])
@@ -102,6 +102,7 @@ class TestCANopenMethods(unittest.TestCase):
         self.assertEqual(int.from_bytes(tx_msg.data[1:3], "little"), 0x1018)
         self.assertEqual(rx_msg.data[3], 0x2)
         self.assertEqual(int.from_bytes(rx_msg.data[4:8], "little"), PRODUCT_CODE)
+        self.assertEqual(rx_msg.arbitration_id, 0x580+NODE_ID)
 
         # Request REVISION_NUMBER
         tx_msg.data = bytearray([0x40, 0x18, 0x10, 0x3])
@@ -111,6 +112,7 @@ class TestCANopenMethods(unittest.TestCase):
         self.assertEqual(int.from_bytes(tx_msg.data[1:3], "little"), 0x1018)
         self.assertEqual(rx_msg.data[3], 0x3)
         self.assertEqual(int.from_bytes(rx_msg.data[4:8], "little"), REVISION_NUMBER)
+        self.assertEqual(rx_msg.arbitration_id, 0x580+NODE_ID)
 
         # Request SERIAL_NUMBER
         tx_msg.data = bytearray([0x40, 0x18, 0x10, 0x4])
@@ -120,14 +122,43 @@ class TestCANopenMethods(unittest.TestCase):
         self.assertEqual(int.from_bytes(tx_msg.data[1:3], "little"), 0x1018)
         self.assertEqual(rx_msg.data[3], 0x4)
         self.assertEqual(int.from_bytes(rx_msg.data[4:8], "little"), SERIAL_NUMBER)
+        self.assertEqual(rx_msg.arbitration_id, 0x580+NODE_ID)
 
- 
-    @classmethod
-    def tearDownClass(cls):
-        print("Done")
-        print("Closing connection to CAN interface... ", end="")
+    def test_tpdo_service(self):
+        # Set operational
+        tx_msg.arbitration_id = 0x0
+        tx_msg.dlc = 2
+        tx_msg.data = bytearray([NMT_OPERATIONAL, NODE_ID])
+        bus.send(tx_msg)
+        rx_msg = bus.recv(timeout=1)
+        self.assertEqual(rx_msg.data[0], STATE_OPERATIONAL)
+
+        tx_msg.arbitration_id = 0x80
+        tx_msg.dlc = 0
+        tx_msg.data = bytearray([])
+        bus.send(tx_msg)
+        rx_msg = bus.recv(timeout=1)
+        self.assertEqual(int.from_bytes(rx_msg.data[0:4],'little'), 2**16-1)
+        self.assertEqual(rx_msg.arbitration_id, 0x180+NODE_ID)
+
+    def test_lss_change_node(self):
+        pass
+
+    def test_nmt_reset(self):
+        tx_msg.arbitration_id = 0x0
+        tx_msg.dlc = 2
+        tx_msg.data = bytearray([NMT_RESET_NODE, NODE_ID])
+        bus.send(tx_msg)
+        time.sleep(1)
+        rx_msg = bus.recv(timeout=1)
+        # Node should automatically be in pre-operative mode
+        self.assertEqual(int.from_bytes(rx_msg.data), 5)
+
+
+    def tearDown(self):
         bus.shutdown()
-        print("Done")
+
+
 
 
 if __name__ ==  "__main__":

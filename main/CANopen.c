@@ -321,32 +321,39 @@ void sdo_service(can_node_t *node){
 }
 
 /* Build the message for the tpdo transfer */
-void build_tpdo(can_node_t* node, uint16_t mappingObjectId){
+void build_tpdo(can_node_t* node, 
+                uint16_t communicationObjectId,
+                uint16_t mappingObjectId){
+
     empty_msg_data(&node->txMsg);
     can_od_object_t* mapping0 = getODentry(node->OD, mappingObjectId, 0);
-    int nrObjects = *(uint8_t*)mapping0->value;
+    int nrObjects = (*(uint8_t*)mapping0->value)+1;
     uint8_t currentPosition = 0;
-    for(int i = 0; i < nrObjects; i++){
+    for(int i = 1; i < nrObjects; i++){
         can_od_object_t* mappingx = getODentry(node->OD, mappingObjectId, i);
-        uint16_t objIndex = *(uint16_t*)mappingx->value;
-        uint8_t objSubindex = *(uint8_t*)(mappingx->value+2);
-        uint8_t objLength = *(uint8_t*)(mappingx->value+3);
+        uint32_t value = *(uint32_t*)mappingx->value;
+        uint16_t objIndex = (value >> 16) & 0xFFFF;
+        uint8_t objSubindex = (value >> 8) & 0xFF;
+        uint8_t objLength = value & 0xFF;
+        printf("Object length: %u\n", objLength);
         can_od_object_t* dataObjectx = getODentry(node->OD, objIndex, objSubindex);
+        uint32_t* objValue = (uint32_t*)dataObjectx->value;
+        printf("%X.%Xh: %lu\n", objIndex, objSubindex,*(uint32_t*)objValue);
         switch(objLength){
             case 1:
-                insert_uint8(&node->txMsg, currentPosition, dataObjectx->value);
+                insert_uint8(&node->txMsg, currentPosition, objValue);
                 currentPosition++;
                 break;
             case 2:
-                insert_uint16(&node->txMsg, currentPosition, dataObjectx->value);
+                insert_uint16(&node->txMsg, currentPosition, objValue);
                 currentPosition += 2;
                 break;
             case 3:
-                insert_uint24(&node->txMsg, currentPosition, dataObjectx->value);
+                insert_uint24(&node->txMsg, currentPosition, objValue);
                 currentPosition += 3;
                 break;
             case 4:
-                insert_uint32(&node->txMsg, currentPosition, dataObjectx->value);
+                insert_uint32(&node->txMsg, currentPosition, objValue);
                 currentPosition += 4;
                 break;
             default:
@@ -354,7 +361,12 @@ void build_tpdo(can_node_t* node, uint16_t mappingObjectId){
 
         }    
     }
+    node->txMsg.data_length_code = 8;
+    can_od_object_t* cobIdObject = getODentry(node->OD, communicationObjectId, 1);
+    uint16_t cobId = *(uint16_t*)cobIdObject->value;
+    node->txMsg.identifier = cobId;
     twai_transmit(&node->txMsg, TX_TIMEOUT);
+    
     can_print_tx_message(&node->txMsg);
 }
 
@@ -376,7 +388,7 @@ void tpdo_service(can_node_t *node){
     for(int i = 0; i < 4; i++){
         can_od_object_t* parameter_object = getODentry(node->OD, tpdo_parameter[i], 0);
         if(*(uint8_t*)parameter_object->value > 0){
-            build_tpdo(node, (uint16_t)tpdo_mapping[i]);
+            build_tpdo(node, (uint16_t)tpdo_parameter[i],(uint16_t)tpdo_mapping[i]);
         }
     }
 }

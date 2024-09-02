@@ -61,7 +61,7 @@ typedef struct {
     uint16_t dataType;
     uint8_t access;
     uint8_t persistence;
-    void* value;
+    uint32_t* value;
 } can_od_object_t;
 
 /* Structure that holds the full object dictionary */
@@ -99,10 +99,6 @@ void insertObject(
     uint16_t dataType,
     uint8_t access,
     uint8_t persistence,
-    int value);
-
-/* DELETE AGAIN */
-uint16_t* getSupportdedODobjects(char* filename);
-uint16_t getNumberOfODObjects(char* filename);
+    uint32_t value);
 
 #endif

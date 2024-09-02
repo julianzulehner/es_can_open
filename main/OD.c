@@ -31,37 +31,14 @@ can_od_t* initOD(int numberObjects){
 Allocates the memory for the value itself. For simplicity it will be a 32 bit
 unsigned integer for all objects independent of the value itself.
  */
-void* allocateValue(){
+uint32_t* allocateValue(){
     uint32_t* valuePtr = (uint32_t*)malloc(sizeof(uint32_t));
     return valuePtr;
 }
 
-/* Writes the data to the pointer with the right datat type */
+/* Writes the data to the pointer type */
 void writeValue(void* valuePtr, uint16_t dataType, int value) {
-    switch (dataType) {
-        case BOOLEAN:
-        case UNSIGNED8:
-            *(uint8_t*)valuePtr = (uint8_t)value;
-            break;
-        case UNSIGNED16:
-            *(uint16_t*)valuePtr = (uint16_t)value;
-            break;
-        case UNSIGNED32:
-            *(uint32_t*)valuePtr = (uint32_t)value;
-            break;
-        case INTEGER8:
-            *(int8_t*)valuePtr = (int8_t)value;
-            break;
-        case INTEGER16:
-            *(int16_t*)valuePtr = (int16_t)value;
-            break;
-        case INTEGER32:
-            *(int32_t*)valuePtr = (int32_t)value;
-            break;
-        default:
-            printf("Error: Unsupported data type\n");
-            break;
-    }
+    *(int32_t*)valuePtr = (int32_t)value;
 }
 
 /* 
@@ -75,10 +52,10 @@ void insertObject(
     uint16_t dataType, 
     uint8_t access,
     uint8_t persistence,
-    int value){
+    uint32_t value){
 
     int key = hash(index, subindex, OD->numberObjects);
-    void* valuePtr = allocateValue();
+    uint32_t valuePtr = allocateValue();
 
     if(valuePtr == NULL){
         printf("Error: Object Dictionary value could not be allocated\n");
@@ -86,7 +63,8 @@ void insertObject(
 
     if (OD->odObjects[key].value == NULL){
         /* Memory is still unused and value can be written */
-        printf("INFO: Writing to OD object %X.%X.h\n", index, subindex);
+        printf("INFO: Setting value of OD object %X.%X.h to: %lu\n", 
+            index, subindex, value);
 
     } else if (OD->odObjects[key].value != NULL &&
                OD->odObjects[key].index != index){
