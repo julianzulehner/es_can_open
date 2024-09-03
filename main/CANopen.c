@@ -208,15 +208,41 @@ void init_nvs(can_node_t *node, nvs_handle_t *nvsHandle){
 }
 
 /* 
-Loads the persistent values from flash after bootup and stores them to OD
-if the volatile values are different. TODO: function should be split in 
-various subfunctions.
+Stores the current configuration to non volatile stoarge
 */
-void store_and_load_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle){
+void store_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle){
+    esp_err_t err;
+    uint32_t indexAndSubindex;
+    uint32_t volValue;
+    uint16_t index;
+    uint8_t subindex;
+    char keyStr[7];
+    for(int i=0; i < node->OD->numberPersistentObjects; i++){
+        indexAndSubindex = (uint32_t)node->OD->persistentObjectIds[i];
+        index = (indexAndSubindex >> 8) & 0xFFFF;
+        subindex = (indexAndSubindex >> 0) & 0xFF;
+        
+        // Get volatile OD object value
+        can_od_object_t* object = getODentry(node->OD, index, subindex);
+        volValue = *(uint32_t*)object->value;
+
+        err = nvs_set_u32(*nvsHandle, keyStr, volValue);
+        nvs_commit(*nvsHandle);
+        printf("INFO: Persistent value %X.%Xh set to %lu\n", 
+                index, subindex, volValue);   
+        if(err!=ESP_OK){
+            printf("ERROR: While NVS write (%s)\n", esp_err_to_name(err));
+            return;
+        }
+    }
+    
+}
+
+/* Loads the values from the persistent data and stores it to volatile */
+void load_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle){
     esp_err_t err;
     uint32_t indexAndSubindex;
     uint32_t persValue;
-    uint32_t volValue;
     uint16_t index;
     uint8_t subindex;
     char keyStr[7];
@@ -237,16 +263,9 @@ void store_and_load_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle){
         
         // Get volatile OD object value
         can_od_object_t* object = getODentry(node->OD, index, subindex);
-        volValue = *(uint32_t*)object->value;
-        if(volValue != persValue){
-            err = nvs_set_u32(*nvsHandle, keyStr, volValue);
-        }    
-        if(err!=ESP_OK){
-            printf("ERROR: While NVS write (%s)\n", esp_err_to_name(err));
-            return;
-        }
+        *(object->value) = persValue;
     }
-    nvs_commit(*nvsHandle);
+    
 }
 
 /* Sends response after chaning NMT state with current state */
@@ -295,7 +314,7 @@ void store_parameters_service(can_node_t *node){
         /* Check if signature is "save" */
         uint32_t signature = extract_uint32(&rxMsg, 4);
         if(signature == SDO_SAVE_SIGNATURE){
-            store_and_load_OD_persistent(node, &node->OD->nvsHandle);
+            store_OD_persistent(node, &node->OD->nvsHandle);
         }
     } 
     /* In all other cases abort the service */

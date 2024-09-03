@@ -31,6 +31,8 @@
 /*************** GLOBAL VARIABLES ***************/
 uint8_t reset = CAN_NO_RESET; // variable that can exit the main program. 
 esp_err_t err;
+TaskHandle_t rxInterruptTaskHandle;
+TaskHandle_t checkBusTaskHandle;
 TaskHandle_t mainTaskHandle;
 can_node_t canNode; 
 twai_status_info_t controllerStatus;
@@ -38,7 +40,7 @@ nvs_handle_t nvsHandle;
 
 /* INTERRUPT TASK FOR RECEIVING MESSAGES AND MESSAGE HANDLING */
 void rx_interrupt_task(void *arg){
-    while(reset == CAN_NO_RESET){
+    while(1){
     if(!twai_receive(&canNode.rxMsg, portMAX_DELAY) == ESP_OK){
         printf("ERROR: CAN RX Error\n");
     } else {
@@ -51,7 +53,7 @@ void rx_interrupt_task(void *arg){
 
 /* TASK THAT CHECKS THE HEALTH OF THE CAN CONTROLLER */
 void check_bus_task(void *arg){
-    while(reset== CAN_NO_RESET){
+    while(1){
         ESP_ERROR_CHECK(twai_get_status_info(&controllerStatus));
         if((controllerStatus.tx_error_counter != 0 )|
            (controllerStatus.rx_error_counter != 0)){
@@ -143,7 +145,7 @@ void main_task(void *arg){
     /* Loads and writes all the objects of the OD to structure ODv */
     init_nvs(&canNode, &nvsHandle);
     load_OD();
-    store_and_load_OD_persistent(&canNode, &nvsHandle);
+    load_OD_persistent(&canNode, &nvsHandle);
     update_node_id(&canNode); 
     printf("INFO: Node configured with node id %u\n", canNode.id);
 
@@ -151,8 +153,10 @@ void main_task(void *arg){
     send_nmt_state(&canNode);
 
     /* Create subtasks */
-    xTaskCreate(rx_interrupt_task, "rx_interrupt_task", 4096, NULL, RX_INTERRUPT_PRIO, NULL);
-    xTaskCreate(check_bus_task, "check_bus_task", 2048, NULL, CHECK_BUS_PRIO, NULL);
+    xTaskCreate(rx_interrupt_task, "rx_interrupt_task", 4096, NULL, 
+                RX_INTERRUPT_PRIO, &checkBusTaskHandle);
+    xTaskCreate(check_bus_task, "check_bus_task", 2048, NULL, 
+                CHECK_BUS_PRIO, &rxInterruptTaskHandle);
     while(reset == CAN_NO_RESET){
         esp_task_wdt_reset();
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -160,10 +164,11 @@ void main_task(void *arg){
 
     /* Exiting program */
     printf("INFO: Exiting main task\n");
+    vTaskDelete(rxInterruptTaskHandle);
+    vTaskDelete(checkBusTaskHandle);
     can_stop_module();
     can_uninstall_module();
     freeOD(OD);
-    vTaskDelete(NULL);
     nvs_close(nvsHandle);
     esp_restart();
 
@@ -172,5 +177,5 @@ void main_task(void *arg){
 /* MAIN ENTRY POINT AFTER START */
 void app_main()
 {
-    xTaskCreate(main_task, "main_task", 4096, NULL, MAIN_TASK_PRIO, NULL);
+    xTaskCreate(main_task, "main_task", 4096, NULL, MAIN_TASK_PRIO, &mainTaskHandle);
 }

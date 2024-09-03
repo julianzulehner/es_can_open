@@ -145,11 +145,12 @@ void sdo_service(can_node_t * node);
 void send_sdo_object(can_node_t *node);
 
 /* 
-Loads the persistent values from flash after bootup and stores them to OD
-if the volatile values are different. TODO: function should be split in 
-various subfunctions.
+Stores the current configuration to non volatile stoarge
 */
-void store_and_load_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle);
+void store_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle);
+
+/* Loads the values from the persistent data and stores it to volatile */
+void load_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle);
 
 /* Initializes the non volatile storage of esp */
 void init_nvs(can_node_t *node, nvs_handle_t *nvsHandle);
