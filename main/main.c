@@ -40,7 +40,7 @@ nvs_handle_t nvsHandle;
 void rx_interrupt_task(void *arg){
     while(reset == CAN_NO_RESET){
     if(!twai_receive(&canNode.rxMsg, portMAX_DELAY) == ESP_OK){
-        ESP_LOGE("RX_INTERRUPT_TASK", "RX Error");
+        printf("ERROR: CAN RX Error\n");
     } else {
         can_print_rx_message(&canNode.rxMsg);
         can_process_message(&canNode);
@@ -53,10 +53,12 @@ void rx_interrupt_task(void *arg){
 void check_bus_task(void *arg){
     while(reset== CAN_NO_RESET){
         ESP_ERROR_CHECK(twai_get_status_info(&controllerStatus));
-
-        printf("TX ERROR: %lu, RX ERROR: %lu\n", 
+        if((controllerStatus.tx_error_counter != 0 )|
+           (controllerStatus.rx_error_counter != 0)){
+            printf("INFO: TX Error Nr.=%lu, RX Error Nr.=%lu\n", 
             controllerStatus.tx_error_counter,
             controllerStatus.rx_error_counter);
+           }
         vTaskDelay(CHECK_CAN_BUS_PERIOD);
     }
 }
@@ -73,6 +75,10 @@ void load_OD(){
 
     /* ERROR REGISTER */
     insertObject(OD, OD_ERROR_REGISTER, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 0);
+
+    /* STORE PARAMETERS */
+    insertObject(OD, OD_STORE_PARAMETERS, 0x0, UNSIGNED8, CONST, VOLATILE, 1);
+    insertObject(OD, OD_STORE_PARAMETERS, 0x1, UNSIGNED32, READ_WRITE, VOLATILE, 1);
 
     /* IDENTITY OBJECT */
     insertObject(OD, OD_IDENTITY_OBJECT, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 5);
@@ -123,28 +129,6 @@ void load_OD(){
     insertObject(OD, OD_PV_DIELECTRIC, 0x0, UNSIGNED16, READ_ONLY, VOLATILE, 65535);
 }
 
-void init_nvs(){
-    // Initialize NVS
-    err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // NVS partition was truncated and needs to be erased
-        // Retry nvs_flash_init
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK( err );
-
-    // Open
-    printf("\n");
-    printf("Opening Non-Volatile Storage (NVS) handle... ");
-    err = nvs_open("storage", NVS_READWRITE, &nvsHandle);
-    if (err != ESP_OK) {
-        printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-    } else {
-        printf("Done\n");
-    }
-}
-
 /* MAIN TASK THAT CONTAINS ALL OTHER SUBTASKS */
 void main_task(void *arg){
     can_od_t* OD = initOD(NR_OBJECTS, NR_PERSISTENT_OBJECTS);
@@ -157,13 +141,14 @@ void main_task(void *arg){
     can_node_init(&canNode);
     canNode.OD = OD; // adds the priorly generated OD to node
     /* Loads and writes all the objects of the OD to structure ODv */
-    init_nvs();
+    init_nvs(&canNode, &nvsHandle);
     load_OD();
+    store_and_load_OD_persistent(&canNode, &nvsHandle);
+    update_node_id(&canNode); 
+    printf("INFO: Node configured with node id %u\n", canNode.id);
 
     /* Send updated NMT status*/
     send_nmt_state(&canNode);
-    
-    ESP_LOGI("MAIN_TASK", "Node configured with node id %u", canNode.id);
 
     /* Create subtasks */
     xTaskCreate(rx_interrupt_task, "rx_interrupt_task", 4096, NULL, RX_INTERRUPT_PRIO, NULL);
@@ -174,7 +159,7 @@ void main_task(void *arg){
     }
 
     /* Exiting program */
-    ESP_LOGI("MAIN_TASK", "Exiting main task");
+    printf("INFO: Exiting main task\n");
     can_stop_module();
     can_uninstall_module();
     freeOD(OD);

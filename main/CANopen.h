@@ -38,6 +38,7 @@
 #define SDO_INIT_SEG_UPLOAD     0x41
 #define SDO_DOWNLOAD_SEGMENT    0x60
 #define SDO_UPLOAD_SEGMENT      0x70
+#define SDO_SAVE_SIGNATURE      0x65766173
 
 #define SDO_DOWNLOAD_SUCCESS    0x60
 #define SDO_ABORT               0x80
@@ -67,8 +68,6 @@
 #define OBJ_PHY_UNIT 0x6131
 #define OBJ_NR_DECIMALS 0x6132
 #define OBJ_DIELECTRIC_CONST 0x7100
-
-#define CAN_TAG "CANopen.h"
 
 /* Possible NMT states of a CAN node */
 typedef enum {
@@ -145,4 +144,16 @@ void sdo_service(can_node_t * node);
 /* Sends data of current sdo object */
 void send_sdo_object(can_node_t *node);
 
+/* 
+Loads the persistent values from flash after bootup and stores them to OD
+if the volatile values are different. TODO: function should be split in 
+various subfunctions.
+*/
+void store_and_load_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle);
+
+/* Initializes the non volatile storage of esp */
+void init_nvs(can_node_t *node, nvs_handle_t *nvsHandle);
+
+/* Updates the node id according to the NVS value */
+void update_node_id(can_node_t *node);
 #endif

@@ -41,7 +41,7 @@ class TestCANopenMethods(unittest.TestCase):
 
     def setUp(self):
         global bus
-        bus = can.Bus(channel=0, interface="ixxat", bitrate=125000)
+        bus = can.Bus(channel=0, interface="ixxat", bitrate=125000, receive_own_messages=False)
 
     def test_set_operational(self):
         tx_msg.arbitration_id = 0x0
@@ -124,6 +124,33 @@ class TestCANopenMethods(unittest.TestCase):
         self.assertEqual(int.from_bytes(rx_msg.data[4:8], "little"), SERIAL_NUMBER)
         self.assertEqual(rx_msg.arbitration_id, 0x580+NODE_ID)
 
+    def test_sdo_write(self):
+        # Writing new value to object 0x1800 subindex 2
+        tx_msg.arbitration_id = 0x600 + NODE_ID
+        tx_msg.dlc = 8
+        tx_msg.data = bytearray([0x2B, 0x00, 0x18, 0x2, 0x2, 0x0, 0x0, 0x0])
+        bus.send(tx_msg, timeout=1)
+        rx_msg = bus.recv(timeout=1)
+        self.assertEqual(rx_msg.arbitration_id, 0x580 + NODE_ID)
+        self.assertEqual(rx_msg.data[0], 0x60)
+        self.assertEqual(rx_msg.data[1], 0x00)
+        self.assertEqual(rx_msg.data[2], 0x18)
+        self.assertEqual(rx_msg.data[3], 0x2)
+        self.assertEqual(int.from_bytes(rx_msg.data[4:8], 'little'), 0)
+
+        # Reading value that was changed
+        tx_msg.arbitration_id = 0x600 + NODE_ID
+        tx_msg.dlc = 8
+        tx_msg.data = bytearray([0x40, 0x00, 0x18, 0x2])
+        bus.send(tx_msg, timeout=1)
+        rx_msg = bus.recv(timeout=1)
+        self.assertEqual(rx_msg.arbitration_id, 0x580 + NODE_ID)
+        self.assertEqual(rx_msg.data[0], 0x43)
+        self.assertEqual(rx_msg.data[1], 0x00)
+        self.assertEqual(rx_msg.data[2], 0x18)
+        self.assertEqual(rx_msg.data[3], 0x2)
+        self.assertEqual(int.from_bytes(rx_msg.data[4:8], 'little'), 2)
+
     def test_tpdo_service(self):
         # Set operational
         tx_msg.arbitration_id = 0x0
@@ -145,14 +172,14 @@ class TestCANopenMethods(unittest.TestCase):
         pass
 
     def test_nmt_reset(self):
+        time.sleep(.1)
         tx_msg.arbitration_id = 0x0
         tx_msg.dlc = 2
         tx_msg.data = bytearray([NMT_RESET_NODE, NODE_ID])
         bus.send(tx_msg)
-        time.sleep(1)
         rx_msg = bus.recv(timeout=1)
         # Node should automatically be in pre-operative mode
-        self.assertEqual(int.from_bytes(rx_msg.data), 5)
+        self.assertEqual(int.from_bytes(rx_msg.data), STATE_PRE_OPERATIONAL)
 
 
     def tearDown(self):

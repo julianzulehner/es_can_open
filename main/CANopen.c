@@ -44,41 +44,50 @@ void can_config_module(void){
     twai_timing_config_t t_config = CAN_BAUD_RATE;
     twai_filter_config_t f_config = CAN_MSG_FILTER;
 
+    /* This should improve number of error frames on install */
+    gpio_set_direction(CAN_TX, GPIO_MODE_OUTPUT);
+    gpio_set_level(CAN_TX, 1);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
     // Uninstalled to stopped state
+    printf("INFO: Installing CAN module... ");
     if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
-        ESP_LOGI(CAN_TAG,"CAN module installed");
+        printf("Done\n");
         }
     else{
-        ESP_LOGE(CAN_TAG, "Failed to install CAN module");
+        printf("\nERROR: Failed to install CAN module\n");
     }
 }
 
 /* Starts the CAN module */
 void can_start_module(void){
+    printf("INFO: Starting CAN module... \n");
     if (twai_start() == ESP_OK) {
-        ESP_LOGI(CAN_TAG, "CAN module started");
+        printf("Done\n");
     }
     else {
-        ESP_LOGE(CAN_TAG, "Failed to start CAN module");
+        printf("\nERROR: Failed to start CAN module\n");
         }
 }
 
 /* Stops the can module */
 void can_stop_module(void){
+    printf("INFO: Stopping CAN module... ");
     if(twai_stop() == ESP_OK){
-        ESP_LOGI(CAN_TAG, "CAN module stopped");
+        printf("Done\n");
     } else {
-        ESP_LOGE(CAN_TAG, "Could not stop CAN module");
+        printf("\nERROR: Could not stop CAN module\n");
     }
 
 }
 
 /* Uninstalls module and frees memory */
 void can_uninstall_module(void){
+    printf("INFO: Uninstalling CAN module... ");
     if(twai_driver_uninstall() == ESP_OK){
-        ESP_LOGI(CAN_TAG, "CAN Module uninstalled");
+        printf("Done\n");
     } else {
-        ESP_LOGE(CAN_TAG, "CAN module could not be uninstalled");
+        printf("\nERROR: CAN module could not be uninstalled\n");
     }
 }
 
@@ -88,7 +97,7 @@ void can_node_init(can_node_t *node){
         node->id = CAN_NODE_ID;
         node->nmtState = CAN_NMT_PRE_OPERATIONAL;
     } else {
-        ESP_LOGE(CAN_TAG, "Invalid node cannot set to pre-operational");
+        printf("ERROR: Invalid node cannot set to pre-operational\n");
         return;
     };
 }
@@ -175,6 +184,71 @@ void insert_uint32(twai_message_t *msg,  uint8_t startbyte, uint32_t* value){
     }
 }
 
+/* Initializes the non volatile storage of esp */
+void init_nvs(can_node_t *node, nvs_handle_t *nvsHandle){
+    esp_err_t err;
+    // Initialize NVS
+    err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+
+    // Open NVS
+    printf("INFO: Opening Non-Volatile Storage handle... ");
+    err = nvs_open("OD_PERS", NVS_READWRITE, nvsHandle);
+    if (err != ESP_OK) {
+        printf("\nError (%s) opening NVS handle!\n", esp_err_to_name(err));
+    } else {
+        printf("Done\n");
+    }
+    node->OD->nvsHandle = *nvsHandle;
+}
+
+/* 
+Loads the persistent values from flash after bootup and stores them to OD
+if the volatile values are different. TODO: function should be split in 
+various subfunctions.
+*/
+void store_and_load_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle){
+    esp_err_t err;
+    uint32_t indexAndSubindex;
+    uint32_t persValue;
+    uint32_t volValue;
+    uint16_t index;
+    uint8_t subindex;
+    char keyStr[7];
+    for(int i=0; i < node->OD->numberPersistentObjects; i++){
+        indexAndSubindex = (uint32_t)node->OD->persistentObjectIds[i];
+        index = (indexAndSubindex >> 8) & 0xFFFF;
+        subindex = (indexAndSubindex >> 0) & 0xFF;
+        // NVS requires strings as keys, so the index and subindex
+        sprintf(keyStr, "%X%X", index, subindex);
+        err = nvs_get_u32(*nvsHandle, keyStr, &persValue);
+        if(err == ESP_OK){
+            printf("INFO: Persistent value %X.%Xh=%lu\n", 
+                    index, subindex, persValue);
+        } else {
+            printf("ERROR: While NVS read (%s)\n", esp_err_to_name(err));
+            return;
+            }
+        
+        // Get volatile OD object value
+        can_od_object_t* object = getODentry(node->OD, index, subindex);
+        volValue = *(uint32_t*)object->value;
+        if(volValue != persValue){
+            err = nvs_set_u32(*nvsHandle, keyStr, volValue);
+        }    
+        if(err!=ESP_OK){
+            printf("ERROR: While NVS write (%s)\n", esp_err_to_name(err));
+            return;
+        }
+    }
+    nvs_commit(*nvsHandle);
+}
+
 /* Sends response after chaning NMT state with current state */
 void send_nmt_state(can_node_t *node){
 
@@ -197,6 +271,39 @@ void empty_msg_data(twai_message_t* msg){
     }
 }
 
+void sdo_write_success(can_node_t *node){
+    node->txMsg.data[0] = SDO_DOWNLOAD_SUCCESS;
+    node->txMsg.data[1] = node->rxMsg.data[1];
+    node->txMsg.data[2] = node->rxMsg.data[2];
+    node->txMsg.data[3] = node->rxMsg.data[3];
+    node->txMsg.data_length_code = 8;
+    ESP_ERROR_CHECK(twai_transmit(&node->txMsg, TX_TIMEOUT));
+    can_print_tx_message(&node->txMsg);
+}
+
+/* Handles a write command to 1010h */
+void store_parameters_service(can_node_t *node){
+    twai_message_t rxMsg = node->rxMsg;
+    empty_msg_data(&node->txMsg);
+    node->txMsg.data_length_code = 8;
+    node->txMsg.data[0] = 4;
+    node->txMsg.data[1] = rxMsg.data[1];
+    node->txMsg.data[2] = rxMsg.data[2];
+    node->txMsg.data[3] = rxMsg.data[3];
+ 
+    if(rxMsg.data[3] == 1){
+        /* Check if signature is "save" */
+        uint32_t signature = extract_uint32(&rxMsg, 4);
+        if(signature == SDO_SAVE_SIGNATURE){
+            store_and_load_OD_persistent(node, &node->OD->nvsHandle);
+        }
+    } 
+    /* In all other cases abort the service */
+    uint32_t abortCode = 0x08000020;
+    insert_uint32(&node->txMsg, 4, &abortCode);
+    ESP_ERROR_CHECK(twai_transmit(&node->txMsg, TX_TIMEOUT));
+    can_print_tx_message(&node->txMsg);
+}
 /* Writes the value to the sdo object */
 void write_sdo_object(can_node_t *node){
     empty_msg_data(&node->txMsg);
@@ -220,27 +327,26 @@ void write_sdo_object(can_node_t *node){
     uint32_t value = 0;
     switch(dlc){
         case 5: // data one byte
-            value = extract_uint8(&node->rxMsg, 5);
+            value = extract_uint8(&node->rxMsg, 4);
             break;
         case 6: // data two bytes
-            value = extract_uint16(&node->rxMsg, 5);
+            value = extract_uint16(&node->rxMsg, 4);
             break;
         case 7: // data three bytes
-            value = extract_uint24(&node->rxMsg, 5);
+            value = extract_uint24(&node->rxMsg, 4);
             break;
         case 8: // data four bytes
-            value = extract_uint32(&node->rxMsg, 5);
+            value = extract_uint32(&node->rxMsg, 4);
             break;
     }
-    *(uint32_t*)object->value = value;
-    printf("INFO: %X.%X changed to %lu\n", index, subindex, value);
-    node->txMsg.data[0] = SDO_DOWNLOAD_SUCCESS;
-    node->txMsg.data[1] = node->rxMsg.data[1];
-    node->txMsg.data[2] = node->rxMsg.data[2];
-    node->txMsg.data[3] = node->rxMsg.data[3];
-    node->txMsg.data_length_code = 8;
-    ESP_ERROR_CHECK(twai_transmit(&node->txMsg, TX_TIMEOUT));
-    can_print_tx_message(&node->txMsg);
+    if(index != 0x1010){
+        *(uint32_t*)object->value = value;
+        printf("INFO: %X.%X changed to %lu\n", index, subindex, value);
+    } else {
+        store_parameters_service(node);
+        return; 
+    }
+    sdo_write_success(node);
 }
 
 /* Sends data of current sdo object */
@@ -406,7 +512,7 @@ void change_nmt(can_node_t *node){
         break;
     case CAN_NMT_CMD_RESET_NODE:
         reset = CAN_RESET;
-        break;
+        return;
     case CAN_NMT_CMD_STOP:
         // TODO: implement case
         break;
@@ -438,5 +544,12 @@ void can_process_message(can_node_t *node){
     } else if (identifier == LSS_RX_COB_ID){
         lss_service(node);
     }
+}
+
+/* Updates the node id according to the NVS value */
+void update_node_id(can_node_t *node){
+    can_od_object_t* nodeIdObj = getODentry(node->OD, OD_NODE_ID, 0);
+    uint32_t newNodeId = *(uint32_t*)nodeIdObj->value;
+    node->id = newNodeId & 0xFF;
 }
 

@@ -5,9 +5,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "esp_err.h"
+#include "esp_check.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 
 #define OD_DEVICE_TYPE          0x1000
 #define OD_ERROR_REGISTER       0x1001
+#define OD_STORE_PARAMETERS     0x1010
+#define OD_RESTORE_DEFAULT      0x1011
 #define OD_IDENTITY_OBJECT      0x1018
 #define OD_TPDO1_PARAMETER      0x1800
 #define OD_TPDO2_PARAMETER      0x1801
@@ -70,6 +76,7 @@ typedef struct{
     uint16_t numberObjects;
     uint32_t* persistentObjectIds;
     uint16_t numberPersistentObjects;
+    nvs_handle_t nvsHandle;
 } can_od_t;
 
 /* 
@@ -102,5 +109,7 @@ void insertObject(
     uint8_t access,
     uint8_t persistence,
     uint32_t value);
+
+
 
 #endif

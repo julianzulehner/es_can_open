@@ -1,5 +1,7 @@
 #include "OD.h"
 
+
+
 /* Hash function for numbers */
 unsigned int hash(uint16_t index, uint8_t subindex, unsigned int table_size) {
     unsigned int hash_value = index;
@@ -136,6 +138,7 @@ void setODValue(can_od_t* OD, uint16_t index, uint16_t subindex, int value){
     }
     writeValue(OD->odObjects[key].value, OD->odObjects[key].dataType, value);
 }
+
 
 
 
