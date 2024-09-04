@@ -54,8 +54,27 @@
 #define SDO_EXP_TRANSFER        0x02
 #define SDO_DATA_SIZE_INDICATED 0x01
 
-#define LSS_RX_COB_ID           0x7E4
-#define LSS_TX_COB_ID           0x7E5
+#define LSS_RX_COB_ID              0x7E5
+#define LSS_TX_COB_ID              0x7E4
+#define LSS_CS_MODE_CONFIG         0x1
+#define LSS_CS_MODE_OPERATION      0x0
+#define LSS_CS_SWITCH_MODE_GLOBAL  0x4
+#define LSS_CS_SELECTIVE_VENDOR    64
+#define LSS_CS_SELECTIVE_PRODUCT   65
+#define LSS_CS_SELECTIVE_REVISION  66
+#define LSS_CS_SELECTIVE_SERIAL    67
+#define LSS_CS_SELCTIVE_RESPONSE   68
+#define LSS_CS_CONFIG_NODE         17
+#define LSS_ERR_ID_OUT_OF_RANGE    1
+#define LSS_NODE_SUCCESS           0
+#define LSS_ERR_SPECIFIC           255
+#define LSS_CS_STORE_CONFIG       23
+#define LSS_STORE_SUCCESS          0
+#define LSS_STORE_NOT_SUPPORTED    1
+#define LSS_STORE_ACCESS_ERROR     2
+#define LSS_OPERATION_MODE         0b0000
+#define LSS_CONFIG_MODE            0b1111
+
 
 #define OBJ_COB_ID_SYNC 0x1005
 #define OBJ_STORE_PARAM 0x1010
@@ -93,6 +112,7 @@ typedef struct {
     twai_message_t rxMsg;
     twai_message_t txMsg;
     can_od_t* OD;
+    uint8_t lssMode;
 } can_node_t;
 
 

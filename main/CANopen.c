@@ -95,7 +95,13 @@ void can_uninstall_module(void){
 void can_node_init(can_node_t *node){
     if(node){
         node->id = CAN_NODE_ID;
-        node->nmtState = CAN_NMT_PRE_OPERATIONAL;
+        node->nmtState = CAN_NMT_INITIALIZING;
+        if(CAN_NODE_ID < 128){
+            node->lssMode = LSS_OPERATION_MODE;
+            node->nmtState = CAN_NMT_PRE_OPERATIONAL;
+        } else {
+            node->lssMode = LSS_CONFIG_MODE;
+        }
     } else {
         printf("ERROR: Invalid node cannot set to pre-operational\n");
         return;
@@ -548,9 +554,104 @@ void change_nmt(can_node_t *node){
     send_nmt_state(node);
 }
 
+/* Impelementation for selective switch */
+void lss_switch_selective(can_node_t *node){
+    twai_message_t rxMsg = node->rxMsg;
+    uint16_t index = 0x1018;
+    uint8_t subindex;
+    uint32_t messageValue = extract_uint32(&rxMsg, 1);
+    uint32_t comparisonValue;
+    switch(rxMsg.data[0]){
+        case LSS_CS_SELECTIVE_VENDOR:
+            subindex=1;
+            break;
+        case LSS_CS_SELECTIVE_PRODUCT:
+            subindex=2;
+            break;
+        case LSS_CS_SELECTIVE_REVISION:
+            subindex=3;
+            break;
+        case LSS_CS_SELECTIVE_SERIAL:
+            subindex=4;
+            break;
+        default:
+            return;
+    }
+    // Get values of identity object for the active switch
+    can_od_object_t* object = getODentry(node->OD, index, subindex);
+    comparisonValue = *(uint32_t*)object->value;
+    if(comparisonValue == messageValue){
+        node->lssMode |= 1 << (subindex-1);
+    }
+    if(node->lssMode == LSS_CONFIG_MODE){
+        empty_msg_data(&node->txMsg);
+        node->txMsg.identifier = LSS_TX_COB_ID;
+        node->txMsg.data_length_code = 8;
+        node->txMsg.data[0] = LSS_CS_SELCTIVE_RESPONSE;
+        printf("INFO: LSS -> Node set to configuration mode\n");
+        twai_transmit(&node->txMsg, TX_TIMEOUT);
+        can_print_tx_message(&node->txMsg);
+    }
+
+}
+
+/* LSS service to change the node id of the device */
+void lss_config_node(can_node_t *node){
+    if(node->lssMode == LSS_CONFIG_MODE){
+        empty_msg_data(&node->txMsg);
+        node->txMsg.identifier = LSS_TX_COB_ID;
+        node->txMsg.data_length_code = 8;
+        node->txMsg.data[0] = LSS_CS_CONFIG_NODE;
+        uint8_t newNodeId = node->rxMsg.data[1];
+        if(newNodeId<128){
+            can_od_object_t* nodeIdObject = getODentry(node->OD, OD_NODE_ID, 0);
+            *(uint32_t*)nodeIdObject->value = (uint32_t)newNodeId;
+            node->txMsg.data[1] = LSS_NODE_SUCCESS;
+            printf("INFO: LSS -> Node ID set to %u\n", newNodeId);   
+        } else {
+            node->txMsg.data[1] = LSS_ERR_ID_OUT_OF_RANGE;
+        }
+        twai_transmit(&node->txMsg, TX_TIMEOUT);
+        can_print_tx_message(&node->txMsg);
+    }
+}
+
+/* 
+LSS service to store the configuration in non volatile memory.
+This will also lead to a restart of the node. 
+*/
+void lss_store_config(can_node_t *node){
+    empty_msg_data(&node->txMsg);
+    node->txMsg.data_length_code = 8;
+    node->txMsg.identifier = LSS_TX_COB_ID;
+    node->txMsg.data[0] = LSS_CS_STORE_CONFIG;
+    store_OD_persistent(node, &node->OD->nvsHandle);
+    /* 
+    TODO: Continue here - change the storage function to a function that only
+    saves the node id. Also send a response message after storage with CS  
+    and error code. Also make an error check and respond with error otherwise.
+    */ 
+   twai_transmit(&node->txMsg, TX_TIMEOUT);
+   can_print_tx_message(&node->txMsg);
+
+
+}
 /* Processes the LSS service such as node id change and baudrate change */
 void lss_service(can_node_t *node){
-    
+    switch(node->rxMsg.data[0]){
+        case LSS_CS_SELECTIVE_VENDOR:
+        case LSS_CS_SELECTIVE_PRODUCT:
+        case LSS_CS_SELECTIVE_REVISION:
+        case LSS_CS_SELECTIVE_SERIAL:
+            // Initialization of selective switch 
+            lss_switch_selective(node);
+            break;
+        case LSS_CS_CONFIG_NODE:
+            lss_config_node(node);
+            break;
+        case LSS_CS_STORE_CONFIG:
+            lss_store_config(node);
+    }
 }
 
 /* Processes the incoming message and sends response if needed */

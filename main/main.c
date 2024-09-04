@@ -150,8 +150,10 @@ void main_task(void *arg){
     printf("INFO: Node configured with node id %u\n", canNode.id);
 
     /* Send updated NMT status*/
-    send_nmt_state(&canNode);
-
+    if(canNode.nmtState == CAN_NMT_PRE_OPERATIONAL){
+        send_nmt_state(&canNode);
+    }
+    
     /* Create subtasks */
     xTaskCreate(rx_interrupt_task, "rx_interrupt_task", 4096, NULL, 
                 RX_INTERRUPT_PRIO, &checkBusTaskHandle);
