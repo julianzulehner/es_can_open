@@ -172,11 +172,11 @@ class TestCANopenMethods(unittest.TestCase):
         pass
 
     def test_nmt_reset(self):
-        time.sleep(.1)
         tx_msg.arbitration_id = 0x0
         tx_msg.dlc = 2
         tx_msg.data = bytearray([NMT_RESET_NODE, NODE_ID])
         bus.send(tx_msg)
+        time.sleep(1)
         rx_msg = bus.recv(timeout=1)
         # Node should automatically be in pre-operative mode
         self.assertEqual(int.from_bytes(rx_msg.data), STATE_PRE_OPERATIONAL)

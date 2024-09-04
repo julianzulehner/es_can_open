@@ -214,6 +214,7 @@ void store_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle){
     esp_err_t err;
     uint32_t indexAndSubindex;
     uint32_t volValue;
+    uint32_t persValue;
     uint16_t index;
     uint8_t subindex;
     char keyStr[7];
@@ -221,18 +222,24 @@ void store_OD_persistent(can_node_t *node, nvs_handle_t *nvsHandle){
         indexAndSubindex = (uint32_t)node->OD->persistentObjectIds[i];
         index = (indexAndSubindex >> 8) & 0xFFFF;
         subindex = (indexAndSubindex >> 0) & 0xFF;
+
+        sprintf(keyStr, "%X%X", index, subindex);
         
         // Get volatile OD object value
         can_od_object_t* object = getODentry(node->OD, index, subindex);
         volValue = *(uint32_t*)object->value;
 
         err = nvs_set_u32(*nvsHandle, keyStr, volValue);
-        nvs_commit(*nvsHandle);
-        printf("INFO: Persistent value %X.%Xh set to %lu\n", 
-                index, subindex, volValue);   
+
+        nvs_commit(*nvsHandle); 
         if(err!=ESP_OK){
             printf("ERROR: While NVS write (%s)\n", esp_err_to_name(err));
             return;
+        } else {
+            /* Check if persistent value was written */
+            nvs_get_u32(*nvsHandle, keyStr, &persValue);
+            printf("INFO: Persistent value %X.%Xh set to %lu\n", 
+            index, subindex, persValue);  
         }
     }
     
