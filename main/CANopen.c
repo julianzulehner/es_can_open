@@ -563,6 +563,7 @@ void lss_switch_selective(can_node_t *node){
     uint16_t index = 0x1018;
     uint8_t subindex;
     uint32_t messageValue = extract_uint32(&rxMsg, 1);
+    printf("IDENTITY OBJECT: %lu\n", messageValue);
     uint32_t comparisonValue;
     switch(rxMsg.data[0]){
         case LSS_CS_SELECTIVE_VENDOR:
@@ -585,6 +586,7 @@ void lss_switch_selective(can_node_t *node){
     comparisonValue = *(uint32_t*)object->value;
     if(comparisonValue == messageValue){
         node->lssMode |= 1 << (subindex-1);
+        printf("LSS MODE: %u\n", node->lssMode);
     }
     if(node->lssMode == LSS_CONFIG_MODE){
         empty_msg_data(&node->txMsg);
