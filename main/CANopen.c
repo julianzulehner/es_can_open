@@ -473,10 +473,10 @@ void build_tpdo(can_node_t* node,
         uint16_t objIndex = (value >> 16) & 0xFFFF;
         uint8_t objSubindex = (value >> 8) & 0xFF;
         uint8_t objLength = value & 0xFF;
-        printf("Object length: %u\n", objLength);
+        //printf("Object length: %u\n", objLength);
         can_od_object_t* dataObjectx = getODentry(node->OD, objIndex, objSubindex);
         uint32_t* objValue = (uint32_t*)dataObjectx->value;
-        printf("%X.%Xh: %lu\n", objIndex, objSubindex,*(uint32_t*)objValue);
+        //printf("%X.%Xh: %lu\n", objIndex, objSubindex,*(uint32_t*)objValue);
         switch(objLength){
             case 1:
                 insert_uint8(&node->txMsg, currentPosition, objValue);
