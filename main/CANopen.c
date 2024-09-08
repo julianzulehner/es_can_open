@@ -532,26 +532,29 @@ void tpdo_service(can_node_t *node){
 }
 
 void change_nmt(can_node_t *node){
-    switch(node->rxMsg.data[0]){
-    case CAN_NMT_CMD_OPERATIONAL:
-        node->nmtState = CAN_NMT_OPERATIONAL;
-        break;
-    case CAN_NMT_CMD_PRE_OPERATIONAL:
-        node->nmtState = CAN_NMT_PRE_OPERATIONAL;
-        break;
-    case CAN_NMT_CMD_RESET_COMMUNICATION:
-        // TODO: implement case
-        break;
-    case CAN_NMT_CMD_RESET_NODE:
-        reset = CAN_RESET;
-        return;
-    case CAN_NMT_CMD_STOP:
-        // TODO: implement case
-        break;
-    default:
-        return;
+    uint8_t targetNode = node->rxMsg.data[1];
+    if(targetNode == node->id || targetNode == 0){
+        switch(node->rxMsg.data[0]){
+        case CAN_NMT_CMD_OPERATIONAL:
+            node->nmtState = CAN_NMT_OPERATIONAL;
+            break;
+        case CAN_NMT_CMD_PRE_OPERATIONAL:
+            node->nmtState = CAN_NMT_PRE_OPERATIONAL;
+            break;
+        case CAN_NMT_CMD_RESET_COMMUNICATION:
+            // TODO: implement case
+            break;
+        case CAN_NMT_CMD_RESET_NODE:
+            reset = CAN_RESET;
+            return;
+        case CAN_NMT_CMD_STOP:
+            // TODO: implement case
+            break;
+        default:
+            return;
+        }
+        send_nmt_state(node);
     }
-    send_nmt_state(node);
 }
 
 /* Impelementation for selective switch */
@@ -560,6 +563,7 @@ void lss_switch_selective(can_node_t *node){
     uint16_t index = 0x1018;
     uint8_t subindex;
     uint32_t messageValue = extract_uint32(&rxMsg, 1);
+    printf("IDENTITY OBJECT: %lu\n", messageValue);
     uint32_t comparisonValue;
     switch(rxMsg.data[0]){
         case LSS_CS_SELECTIVE_VENDOR:
@@ -582,6 +586,7 @@ void lss_switch_selective(can_node_t *node){
     comparisonValue = *(uint32_t*)object->value;
     if(comparisonValue == messageValue){
         node->lssMode |= 1 << (subindex-1);
+        printf("LSS MODE: %u\n", node->lssMode);
     }
     if(node->lssMode == LSS_CONFIG_MODE){
         empty_msg_data(&node->txMsg);
@@ -657,7 +662,7 @@ void lss_service(can_node_t *node){
 /* Processes the incoming message and sends response if needed */
 void can_process_message(can_node_t *node){
     uint32_t identifier = node->rxMsg.identifier;
-    if (identifier == CAN_NMT_ID && node->rxMsg.data[1] == node->id){
+    if (identifier == CAN_NMT_ID){
         change_nmt(node);
         return;
     } else if (identifier == (CAN_HB_ID + node->id)){
