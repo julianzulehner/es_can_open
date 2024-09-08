@@ -1,8 +1,19 @@
-build/
-.vscode
-main/*.o
-main/*.exe
-.vscode/settings.json
-.vscode/tasks.json
-.vscode/launch.json
-.vscode/c_cpp_properties.json
+# ESP CANOPEN
+esp_can_open/build/
+esp_can_open/.vscode
+esp_can_open/main/*.o
+esp_can_open/main/*.exe
+esp_can_open/.vscode/settings.json
+esp_can_open/.vscode/tasks.json
+esp_can_open/.vscode/launch.json
+esp_can_open/.vscode/c_cpp_properties.json
+
+# ESP J1939
+esp_j1939/build/
+esp_j1939/.vscode
+esp_j1939/main/*.o
+esp_j1939/main/*.exe
+esp_j1939/.vscode/settings.json
+esp_j1939/.vscode/tasks.json
+esp_j1939/.vscode/launch.json
+esp_j1939/.vscode/c_cpp_properties.json
