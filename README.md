@@ -32,7 +32,6 @@ In any case, feel free to use this code as an example or as a reference.
 ## Getting Started
 
 ### Dependencies
-
 - [ESP-IDF toolchain](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html) in VS Code (for straightforward compiling and flashing).
 
 
@@ -45,13 +44,7 @@ In any case, feel free to use this code as an example or as a reference.
 
 ## License
 
-This project is licensed under the [NAME HERE] License - see the LICENSE.md file for details
+This project is licensed under the MIT License - see the LICENSE file for details
 
 ## Acknowledgments
-
-Inspiration, code snippets, etc.
-* [awesome-readme](https://github.com/matiassingers/awesome-readme)
-* [PurpleBooth](https://gist.github.com/PurpleBooth/109311bb0361f32d87a2)
-* [dbader](https://github.com/dbader/readme-template)
-* [zenorocha](https://gist.github.com/zenorocha/4526327)
-* [fvcproductions](https://gist.github.com/fvcproductions/1bfc2d4aecb01a834b46)
+- [CANopenNode](https://github.com/CANopenNode/CANopenNode)
