@@ -1,6 +1,10 @@
+/*
+ * Copyright (c) 2024 Your Julian Zulehner
+ * This file is licensed under the MIT License.
+ * See the LICENSE file in the project root for more information.
+ */
+
 #include "OD.h"
-
-
 
 /* Hash function for numbers */
 unsigned int hash(uint16_t index, uint8_t subindex, unsigned int table_size) {

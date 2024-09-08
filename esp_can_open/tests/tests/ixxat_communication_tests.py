@@ -1,4 +1,8 @@
 """
+ * Copyright (c) 2024 Your Julian Zulehner
+ * This file is licensed under the MIT License.
+ * See the LICENSE file in the project root for more information.
+
 Before running this test, one must connect the ESP32 with the installed firmware
 via USB to the computer. Also the ixxat device must be connected to the CAN bus 
 and via USB to the computer. 

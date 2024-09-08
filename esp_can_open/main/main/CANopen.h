@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2024 Your Julian Zulehner
+ * This file is licensed under the MIT License.
+ * See the LICENSE file in the project root for more information.
+ */
+
 #include <stdio.h>
 #include "driver/twai.h"
 #include "esp_log.h"
