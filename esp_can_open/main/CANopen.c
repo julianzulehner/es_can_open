@@ -38,6 +38,12 @@ void can_print_rx_message(twai_message_t *msg){
     );
 }
 
+/* Transmits and prints the message to stdout*/
+void can_transmit(twai_message_t *msg){
+    ESP_ERROR_CHECK(twai_transmit(msg, TX_TIMEOUT));
+    can_print_tx_message(msg);
+};
+
 /* Config the CAN module */
 void can_config_module(void){
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX, CAN_RX, TWAI_MODE_NORMAL);
@@ -459,9 +465,10 @@ void sdo_service(can_node_t *node){
 }
 
 /* Build the message for the tpdo transfer */
-void build_tpdo(can_node_t* node, 
+void build_and_send_tpdo(can_node_t* node, 
                 uint16_t communicationObjectId,
-                uint16_t mappingObjectId){
+                uint16_t mappingObjectId,
+                uint8_t tpdoNumber){
 
     empty_msg_data(&node->txMsg);
     can_od_object_t* mapping0 = getODentry(node->OD, mappingObjectId, 0);
@@ -500,12 +507,23 @@ void build_tpdo(can_node_t* node,
         }    
     }
     node->txMsg.data_length_code = 8;
-    can_od_object_t* cobIdObject = getODentry(node->OD, communicationObjectId, 1);
-    uint16_t cobId = *(uint16_t*)cobIdObject->value;
+    uint16_t cobId = (uint16_t)getODValue(node->OD, communicationObjectId,1);
     node->txMsg.identifier = cobId;
-    twai_transmit(&node->txMsg, TX_TIMEOUT);
-    
-    can_print_tx_message(&node->txMsg);
+
+    /* Check if tpdo should be sent based on the number of sync counter */
+    uint32_t transmissionType = getODValue(node->OD, communicationObjectId, 2);
+    printf("TRANSM TYPE: %lu\n", transmissionType);
+    printf("CONDITIONAL: %u\n", (uint8_t)((transmissionType >= 0x1) & (transmissionType <= 0xF0)));
+    if((transmissionType >= 0x1) & (transmissionType <= 0xF0)){
+        if(tpdo_sync_counter[tpdoNumber] == transmissionType){
+            can_transmit(&node->txMsg);
+            tpdo_sync_counter[tpdoNumber]=0; // reset to zero after transmit
+        }
+
+    } else {
+        printf("ERROR: Transmission type '%lu'of tpdo not supported\n", 
+            transmissionType);
+    }
 }
 
 /* 
@@ -524,9 +542,11 @@ void tpdo_service(can_node_t *node){
         OD_TPDO3_MAPPING, OD_TPDO4_MAPPING};
 
     for(int i = 0; i < 4; i++){
-        can_od_object_t* parameter_object = getODentry(node->OD, tpdo_parameter[i], 0);
-        if(*(uint8_t*)parameter_object->value > 0){
-            build_tpdo(node, (uint16_t)tpdo_parameter[i],(uint16_t)tpdo_mapping[i]);
+        uint8_t parameter_object = (uint8_t)getODValue(node->OD, tpdo_parameter[i],0);
+        if(parameter_object > 0){
+            tpdo_sync_counter[i]++;
+            printf("SYNC COUNTER: %u\n", tpdo_sync_counter[i]);
+            build_and_send_tpdo(node, (uint16_t)tpdo_parameter[i],(uint16_t)tpdo_mapping[i], (uint8_t)i);
         }
     }
 }
@@ -548,12 +568,11 @@ void change_nmt(can_node_t *node){
             reset = CAN_RESET;
             return;
         case CAN_NMT_CMD_STOP:
-            // TODO: implement case
+            node->nmtState = CAN_NMT_STOPPED;
             break;
         default:
             return;
         }
-        send_nmt_state(node);
     }
 }
 
@@ -638,9 +657,18 @@ void lss_store_config(can_node_t *node){
     */ 
    twai_transmit(&node->txMsg, TX_TIMEOUT);
    can_print_tx_message(&node->txMsg);
-
-
 }
+/* Returns the current node id via the lss protocol */
+void lss_return_node(can_node_t *node){
+    empty_msg_data(&node->txMsg);
+    node->txMsg.data_length_code = 2;
+    node->txMsg.identifier = LSS_TX_COB_ID;
+    node->txMsg.data[0] = LSS_ASK_NODE;
+    node->txMsg.data[1] = node->id;
+    twai_transmit(&node->txMsg, TX_TIMEOUT);
+    can_print_tx_message(&node->txMsg);
+}
+
 /* Processes the LSS service such as node id change and baudrate change */
 void lss_service(can_node_t *node){
     switch(node->rxMsg.data[0]){
@@ -656,6 +684,12 @@ void lss_service(can_node_t *node){
             break;
         case LSS_CS_STORE_CONFIG:
             lss_store_config(node);
+            break;
+        case LSS_ASK_NODE:
+            lss_return_node(node);
+            break;
+        default:
+            printf("ERROR: LSS command not defined\n");
     }
 }
 
@@ -683,5 +717,9 @@ void update_node_id(can_node_t *node){
     can_od_object_t* nodeIdObj = getODentry(node->OD, OD_NODE_ID, 0);
     uint32_t newNodeId = *(uint32_t*)nodeIdObj->value;
     node->id = newNodeId & 0xFF;
-}
 
+    // Update also the SDOs that are affected
+    can_od_object_t* odEntry = getODentry(node->OD, OD_TPDO1_PARAMETER, 0x1);
+    *(uint32_t*)odEntry->value = 0x180 + node->id;
+}
+    

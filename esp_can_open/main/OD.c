@@ -144,5 +144,11 @@ void setODValue(can_od_t* OD, uint16_t index, uint16_t subindex, int value){
 }
 
 
+/* Returns the value of an OD object */
+uint32_t getODValue(can_od_t* OD, uint16_t index, uint16_t subindex){
+    can_od_object_t* object = getODentry(OD, index, subindex);
+    return *(uint32_t*)object->value;
+}
+
 
 

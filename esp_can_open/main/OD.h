@@ -91,6 +91,9 @@ can_od_object_t* getODentry(can_od_t* OD, uint16_t index, uint16_t subindex);
 /* Change the value of an object dictionary object */
 void setODValue(can_od_t* OD, uint16_t index, uint16_t subindex, int value);
 
+/* Returns the value of an OD object */
+uint32_t getODValue(can_od_t* OD, uint16_t index, uint16_t subindex);
+
 /* Frees up the allocated memory of the full object dictionary */
 void freeOD(can_od_t* OD);
 

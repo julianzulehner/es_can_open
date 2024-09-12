@@ -80,6 +80,7 @@
 #define LSS_STORE_ACCESS_ERROR     2
 #define LSS_OPERATION_MODE         0b0000
 #define LSS_CONFIG_MODE            0b1111
+#define LSS_ASK_NODE               0x5E
 
 
 #define OBJ_COB_ID_SYNC 0x1005
@@ -121,7 +122,6 @@ typedef struct {
     uint8_t lssMode;
 } can_node_t;
 
-
 /* Prints a can rx message to the standard output*/
 void can_print_rx_message(twai_message_t *msg);
 
@@ -133,6 +133,9 @@ void can_config_module(void);
 
 /* Starts the CAN module */
 void can_start_module(void);
+
+/* Transmits message and prints it to stdout */
+void can_transmit(twai_message_t *msg);
 
 /* Stops the can module */
 void can_stop_module(void);
