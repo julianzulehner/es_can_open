@@ -51,6 +51,8 @@
 #define DIAGNOSTIC_MASK 0x3FF // first 6 bits are ignored
 
 #define NR_DECIMAL_DEFAULT 3
+#define NR_DECIMAL_DIELECTRIC 3
+#define NR_DECIMAL_TEMPERATURE 1
 #define FAC_VISCOSITY 0.015625
 #define FAC_DENSITY 0.00003052
 #define FAC_DIELECTRIC 0.00012207
@@ -149,9 +151,9 @@ void init_uart_timer(){
 }
 
 /* Converts the raw sensor value into the physical unit and returns uint32_t */
-uint32_t convert_value(uint32_t value, float factor, float offset){
+uint32_t convert_value(uint32_t value, float factor, float offset, int nrDecimal){
     float floatValue =  (float)value;
-    float floatResult =  ((floatValue*factor)+offset)*pow(10,NR_DECIMAL_DEFAULT);
+    float floatResult =  ((floatValue*factor)+offset)*pow(10,nrDecimal);
     if(floatResult > 0){
         return (uint32_t)floatResult;
     } else{
@@ -171,24 +173,28 @@ void parse_message(sensor_data_t* data, twai_message_t* msg){
     switch(identifier){
         case MSG_ID_VISC_DENS_DIEL:
             rawValue = extract_uint16(msg, 0);
-            convertedValue = convert_value(rawValue, FAC_VISCOSITY, NO_OFFSET);
+            convertedValue = convert_value(rawValue, FAC_VISCOSITY, NO_OFFSET, 
+                                            NR_DECIMAL_DEFAULT);
             data->viscosity = convertedValue;
             printf("INFO: Viscosity updated\n");
 
             rawValue = extract_uint16(msg, 2);
-            convertedValue = convert_value(rawValue, FAC_DENSITY, NO_OFFSET);
+            convertedValue = convert_value(rawValue, FAC_DENSITY, NO_OFFSET, 
+                                            NR_DECIMAL_DEFAULT);
             data->density = convertedValue;
             printf("INFO: Density updated\n");
 
             rawValue = extract_uint16(msg, 6);
-            convertedValue = convert_value(rawValue, FAC_DIELECTRIC, NO_OFFSET);
+            convertedValue = convert_value(rawValue, FAC_DIELECTRIC, NO_OFFSET,
+                                            NR_DECIMAL_DIELECTRIC);
             data->dielectric = convertedValue;
             printf("INFO: Dielectric updated\n");
             break;
 
         case MSG_ID_RESI:
             rawValue = extract_uint24(msg, 0);
-            convertedValue = convert_value(rawValue, FAC_RESISTANCE, NO_OFFSET);
+            convertedValue = convert_value(rawValue, FAC_RESISTANCE, NO_OFFSET,
+                                            NR_DECIMAL_DEFAULT);
             data->resistance = convertedValue;
             printf("INFO: Resistance updated\n");
             break;
@@ -199,7 +205,8 @@ void parse_message(sensor_data_t* data, twai_message_t* msg){
         case MSG_ID_TEMP:
             rawValue = extract_uint16(msg, 2);
             convertedValue = convert_value(rawValue, FAC_TEMPERATURE, 
-                                            OFFSET_TEMPERATURE);
+                                            OFFSET_TEMPERATURE, 
+                                            NR_DECIMAL_TEMPERATURE);
             data->temperature = convertedValue;
             printf("INFO: Temperature updated\n");
             esp_timer_start_once(uartTimerHandle, UART_DELAY);

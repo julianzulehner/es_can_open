@@ -512,8 +512,6 @@ void build_and_send_tpdo(can_node_t* node,
 
     /* Check if tpdo should be sent based on the number of sync counter */
     uint32_t transmissionType = getODValue(node->OD, communicationObjectId, 2);
-    printf("TRANSM TYPE: %lu\n", transmissionType);
-    printf("CONDITIONAL: %u\n", (uint8_t)((transmissionType >= 0x1) & (transmissionType <= 0xF0)));
     if((transmissionType >= 0x1) & (transmissionType <= 0xF0)){
         if(tpdo_sync_counter[tpdoNumber] == transmissionType){
             can_transmit(&node->txMsg);
@@ -545,7 +543,6 @@ void tpdo_service(can_node_t *node){
         uint8_t parameter_object = (uint8_t)getODValue(node->OD, tpdo_parameter[i],0);
         if(parameter_object > 0){
             tpdo_sync_counter[i]++;
-            printf("SYNC COUNTER: %u\n", tpdo_sync_counter[i]);
             build_and_send_tpdo(node, (uint16_t)tpdo_parameter[i],(uint16_t)tpdo_mapping[i], (uint8_t)i);
         }
     }
@@ -721,5 +718,7 @@ void update_node_id(can_node_t *node){
     // Update also the SDOs that are affected
     can_od_object_t* odEntry = getODentry(node->OD, OD_TPDO1_PARAMETER, 0x1);
     *(uint32_t*)odEntry->value = 0x180 + node->id;
+    odEntry = getODentry(node->OD, OD_TPDO2_PARAMETER, 0x1);
+    *(uint32_t*)odEntry->value = 0x280 + node->id;
 }
     

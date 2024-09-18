@@ -17,3 +17,7 @@ esp_j1939/.vscode/settings.json
 esp_j1939/.vscode/tasks.json
 esp_j1939/.vscode/launch.json
 esp_j1939/.vscode/c_cpp_properties.json
+
+# General
+build/
+main/

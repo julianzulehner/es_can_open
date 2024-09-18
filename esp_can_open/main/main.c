@@ -32,7 +32,7 @@
 #define CHECK_CAN_BUS_PERIOD pdMS_TO_TICKS(3000)
 
 /* OD settings */
-#define NR_OBJECTS 117 // this is randomly selected to and has no hash collisions
+#define NR_OBJECTS 463 // this is randomly selected to and has no hash collisions
 #define NR_PERSISTENT_OBJECTS 9 
 
 /* UART CONFIGURATION */
@@ -74,7 +74,7 @@ void rx_interrupt_task(void *arg){
     if(!twai_receive(&canNode.rxMsg, portMAX_DELAY) == ESP_OK){
         printf("ERROR: CAN RX Error\n");
     } else {
-        can_print_rx_message(&canNode.rxMsg);
+        //can_print_rx_message(&canNode.rxMsg);
         can_process_message(&canNode);
     }
     vTaskDelay(1);
@@ -101,12 +101,19 @@ void rx_uart_interrupt_task(void *arg){
                     sizeof(sensor_data_t), portMAX_DELAY);
         if (len == sizeof(sensor_data_t)){
             memcpy(&sensorData, buffer, sizeof(sensor_data_t));
+            printf("Diagnostics: %lu\n", sensorData.diagnostics);
             printf("Dielectric: %lu\n", sensorData.dielectric);
+            printf("Temperature: %lu\n", sensorData.temperature);
 
-            /* Write new values to OD objects */
-            can_od_object_t* dielectricObject = getODentry(canNode.OD, 
-                OD_PV_DIELECTRIC, 0);
-            *dielectricObject->value = sensorData.dielectric;
+            /* Write new values to OD objects */        
+            if(sensorData.diagnostics == 0){
+                setODValue(canNode.OD, OD_PV_TEMPERATURE, 0, sensorData.temperature);
+                setODValue(canNode.OD, OD_PV_DIELECTRIC, 0, sensorData.dielectric);
+            } else {
+                setODValue(canNode.OD, OD_PV_TEMPERATURE, 0, (uint32_t)9999);
+                setODValue(canNode.OD, OD_PV_DIELECTRIC, 0, (uint32_t)9999);
+            }
+
         } else {
             printf("ERROR: uart_read_bytes failed or incomplete data received\n");
         }
@@ -184,8 +191,9 @@ void load_OD(){
     insertObject(OD, OD_IDENTITY_OBJECT, 0x4, UNSIGNED32, READ_ONLY, VOLATILE, 1);
 
     /* MPL values */
-    insertObject(OD, OD_MPL_VALUE_INDEX, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
+    insertObject(OD, OD_MPL_VALUE_INDEX, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 2);
     insertObject(OD, OD_MPL_VALUE_INDEX, 0x1, UNSIGNED16, READ_WRITE, VOLATILE, 0);
+    insertObject(OD, OD_MPL_VALUE_INDEX, 0x2, UNSIGNED16, READ_WRITE, VOLATILE, 0);
 
     /* Node ID */
     insertObject(OD, OD_NODE_ID, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, CAN_NODE_ID);
@@ -193,10 +201,12 @@ void load_OD(){
     /* TPDO 1 Communication Parameter*/
     insertObject(OD, OD_TPDO1_PARAMETER, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, 2);
     insertObject(OD, OD_TPDO1_PARAMETER, 0x1, UNSIGNED16, READ_WRITE, PERSISTENT, 0x180+canNode.id);
-    insertObject(OD, OD_TPDO1_PARAMETER, 0x2, UNSIGNED8, READ_WRITE, PERSISTENT, 8);
+    insertObject(OD, OD_TPDO1_PARAMETER, 0x2, UNSIGNED8, READ_WRITE, PERSISTENT, 20);
 
     /* TPDO 2 Communication Parameter*/
-    insertObject(OD, OD_TPDO2_PARAMETER, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, 0);
+    insertObject(OD, OD_TPDO2_PARAMETER, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, 2);
+    insertObject(OD, OD_TPDO2_PARAMETER, 0x1, UNSIGNED16, READ_WRITE, PERSISTENT, 0x280+canNode.id);
+    insertObject(OD, OD_TPDO2_PARAMETER, 0x2, UNSIGNED8, READ_WRITE, PERSISTENT, 20);
 
     /* TPDO 3 Communication Parameter*/
     insertObject(OD, OD_TPDO3_PARAMETER, 0x0, UNSIGNED8, READ_WRITE, PERSISTENT, 0);
@@ -212,17 +222,30 @@ void load_OD(){
         OD_MPL_VALUE_INDEX << 16 | 0x1 << 8 | 0x2);
     insertObject(OD, OD_TPDO1_MAPPING, 0x3, UNSIGNED32, READ_WRITE, PERSISTENT,
         OD_ERROR_REGISTER << 16 | 0x0 << 8 | 0x1);
+
+    /* TPDO 2 MAPPING */
+    insertObject(OD, OD_TPDO2_MAPPING, 0x0, UNSIGNED8, CONST, VOLATILE, 3);
+    insertObject(OD, OD_TPDO2_MAPPING, 0x1, UNSIGNED32, READ_WRITE, PERSISTENT, 
+        OD_PV_TEMPERATURE << 16 | 0x0 << 8 | 0x4);
+    insertObject(OD, OD_TPDO2_MAPPING, 0x2, UNSIGNED32, READ_WRITE, PERSISTENT,
+        OD_MPL_VALUE_INDEX << 16 | 0x2 << 8 | 0x2);
+    insertObject(OD, OD_TPDO2_MAPPING, 0x3, UNSIGNED32, READ_WRITE, PERSISTENT,
+        OD_ERROR_REGISTER << 16 | 0x0 << 8 | 0x1);
     
     /* Physical unit */
-    insertObject(OD, 0x6131, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
-    insertObject(OD, 0x6131, 0x1, UNSIGNED32, READ_ONLY, VOLATILE, 0);
+    insertObject(OD, OBJ_PHY_UNIT, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
+    insertObject(OD, OBJ_PHY_UNIT, 0x1, UNSIGNED32, READ_ONLY, VOLATILE, 0);
+    insertObject(OD, OBJ_PHY_UNIT, 0x2, UNSIGNED32, READ_ONLY, VOLATILE, 2949120);
 
     /* Number of Decimal Positions */
-    insertObject(OD, 0x6132, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
-    insertObject(OD, 0x6132, 0x1, UNSIGNED8, READ_ONLY, VOLATILE, 5);
+    insertObject(OD, OBJ_NR_DECIMALS, 0x0, UNSIGNED8, READ_ONLY, VOLATILE, 1);
+    insertObject(OD, OBJ_NR_DECIMALS, 0x1, UNSIGNED8, READ_ONLY, VOLATILE, 0);
+    insertObject(OD, OBJ_NR_DECIMALS, 0x2, UNSIGNED8, READ_ONLY, VOLATILE, 1);
 
-    /* Process Values 0x7100 = dielectric constant */
+    /* Process Values 0x71XX*/
     insertObject(OD, OD_PV_DIELECTRIC, 0x0, UNSIGNED16, READ_ONLY, VOLATILE, 65535);
+    insertObject(OD, OD_PV_TEMPERATURE, 0x0, UNSIGNED16, READ_ONLY, VOLATILE, 65535);
+
 }
 
 /* MAIN TASK THAT CONTAINS ALL OTHER SUBTASKS */
@@ -242,6 +265,8 @@ void main_task(void *arg){
     /* Loads and writes all the objects of the OD to structure ODv */
     init_nvs(&canNode, &nvsHandle);
     load_OD();
+    // store_OD_persistent(&canNode, &nvsHandle); // uncomment this line for one
+    //flash to delete all persistent values.
     load_OD_persistent(&canNode, &nvsHandle);
     update_node_id(&canNode); 
     printf("INFO: Node configured with node id %u\n", canNode.id);

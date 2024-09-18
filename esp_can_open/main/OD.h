@@ -28,6 +28,7 @@
 #define OD_PYH_UNIT             0x6131
 #define OD_DEC_POSITIONS        0x6132
 #define OD_PV_DIELECTRIC        0x7100
+#define OD_PV_TEMPERATURE       0x7101
 
 /* 
 Available data types (list not extensive but sufficient form my use).
