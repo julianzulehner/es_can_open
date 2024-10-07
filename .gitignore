@@ -21,3 +21,4 @@ esp_j1939/.vscode/c_cpp_properties.json
 # General
 build/
 main/
+__pycache__/

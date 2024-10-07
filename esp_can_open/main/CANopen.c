@@ -48,7 +48,12 @@ void can_transmit(twai_message_t *msg){
 void can_config_module(void){
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX, CAN_RX, TWAI_MODE_NORMAL);
     twai_timing_config_t t_config = CAN_BAUD_RATE;
-    twai_filter_config_t f_config = CAN_MSG_FILTER;
+    twai_filter_config_t f_config = {
+        .acceptance_mask = CAN_ACCEPTANCE_MASK,
+        .acceptance_code = CAN_ACCEPTANCE_CODE,
+        .single_filter = CAN_SINGLE_FILTER
+    };
+    
 
     /* This should improve number of error frames on install */
     gpio_set_direction(CAN_TX, GPIO_MODE_OUTPUT);
@@ -693,7 +698,10 @@ void lss_service(can_node_t *node){
 /* Processes the incoming message and sends response if needed */
 void can_process_message(can_node_t *node){
     uint32_t identifier = node->rxMsg.identifier;
-    if (identifier == CAN_NMT_ID){
+    if (identifier == CAN_SYNC){
+        tpdo_service(node);
+        return;
+    } else if (identifier == CAN_NMT_ID){
         change_nmt(node);
         return;
     } else if (identifier == (CAN_HB_ID + node->id)){
@@ -702,8 +710,7 @@ void can_process_message(can_node_t *node){
         return;
     } else if (identifier == (CAN_RX_SDO + node->id)){
         sdo_service(node);
-    } else if (identifier == CAN_SYNC){
-        tpdo_service(node);
+        return;
     } else if (identifier == LSS_RX_COB_ID){
         lss_service(node);
     }

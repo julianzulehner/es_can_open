@@ -74,7 +74,7 @@ void rx_interrupt_task(void *arg){
     if(!twai_receive(&canNode.rxMsg, portMAX_DELAY) == ESP_OK){
         printf("ERROR: CAN RX Error\n");
     } else {
-        //can_print_rx_message(&canNode.rxMsg);
+        can_print_rx_message(&canNode.rxMsg);
         can_process_message(&canNode);
     }
     vTaskDelay(1);
