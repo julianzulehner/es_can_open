@@ -18,7 +18,7 @@
 #include "esp_task_wdt.h"
 #include "driver/uart.h"
 #include "esp_timer.h"
-
+#include "driver/usb_serial_jtag.h"
 #include "can.h"
 #include "lawicel_emulator.h"
 
@@ -30,19 +30,31 @@
 #define CHECK_BUS_PRIO 1
 #define CHECK_CAN_BUS_PERIOD pdMS_TO_TICKS(3000)
 #define LED GPIO_NUM_8
-#define VERBOSITY ESP_LOG_NONE
+#define BUF_SIZE 1024
 
-/*************** GLOBAL VARIABLES ***************/
-uint8_t reset = 0; // variable that can exit the main program. 
-esp_err_t err;
-TaskHandle_t rxInterruptTaskHandle;
-TaskHandle_t checkBusTaskHandle;
 TaskHandle_t mainTaskHandle;
 TaskHandle_t uartRxInterruptTaskHandle;
+TaskHandle_t rxInterruptTaskHandle;
+TaskHandle_t checkBusTaskHandle;
 esp_timer_handle_t timerHandle;
 twai_status_info_t controllerStatus;
 twai_message_t rxMsg;
 twai_message_t txMsg;
+int reset = 0;
+//uint8_t* buffer;
+uint8_t counter = 0;
+
+void test_fun(twai_message_t * msg){
+    printf("%d\n", msg->data[0]);
+}
+void send_twai_message(const twai_message_t *msg)
+{
+    uint8_t buffer[sizeof(twai_message_t)];
+    memcpy(buffer, msg, sizeof(twai_message_t));
+    usb_serial_jtag_write_bytes(buffer, sizeof(twai_message_t), 
+                                pdMS_TO_TICKS(20));
+}
+
 
 void toggle_led(void *arg){
     gpio_set_level(LED, 0);
@@ -67,16 +79,36 @@ void rx_interrupt_task(void *arg)
 
 void uart_rx_interrupt_task(void *arg)
 {
+    uint8_t *rxBuffer = (uint8_t *) malloc(BUF_SIZE);
+    //buffer = (uint8_t *) malloc(20);
+    //if (buffer == NULL) {
+     //   printf("ERROR: Buffer could not be allocated\n");
+    //}
     while(1)
     {
-        uint8_t data[8];
-        int length = uart_read_bytes(UART_NUM_0, data, 8, pdMS_TO_TICKS(20));
-        if (length > 0) {
-            data[length] = '\0';
-            printf("Received: %s\n", data);
+        int length = usb_serial_jtag_read_bytes(rxBuffer, (BUF_SIZE-1), 
+                     pdMS_TO_TICKS(1000));
+        if (length > 0) 
+        {   
+            counter ++;
+            txMsg.data[0] = counter;
+            txMsg.data[1] = 0x02;
+            txMsg.data[2] = 0x03;
+            txMsg.data[3] = 0x04;
+            txMsg.data[4] = 0x05;
+            txMsg.data[5] = 0x06;
+            txMsg.data[6] = 0x07;
+            txMsg.data[7] = 0x08;
+            txMsg.data_length_code = 8;
+            txMsg.identifier = 0x80;
+            send_twai_message(&txMsg);
+            esp_timer_start_once(timerHandle, 0);
+
         }
+        vTaskDelay(1);
     }
-    vTaskDelay(1);
+    free(rxBuffer);
+    
 }
 
 /* TASK THAT CHECKS THE HEALTH OF THE CAN CONTROLLER */
@@ -98,7 +130,6 @@ void check_bus_task(void *arg)
 /* MAIN TASK THAT CONTAINS ALL OTHER SUBTASKS */
 void main_task(void *arg)
 {
-    esp_log_level_set("*", VERBOSITY);
     esp_task_wdt_add(mainTaskHandle);
     
     can_config_module(); // configuration in CANopen.h
@@ -108,15 +139,14 @@ void main_task(void *arg)
     gpio_set_direction(LED, GPIO_MODE_OUTPUT);
     gpio_set_level(LED, 1);
 
-    // Init uart 
-    const uart_config_t uartConfig = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
+    // Configure USB SERIAL JTAG
+    usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+        .rx_buffer_size = BUF_SIZE,
+        .tx_buffer_size = BUF_SIZE,
     };
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uartConfig));
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, 2048, 2048, 0, NULL, 0));
+    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+
+
     /* Create timers */
     esp_timer_create_args_t timerArgs = {
         .callback = toggle_led,
@@ -127,10 +157,10 @@ void main_task(void *arg)
     esp_timer_create(&timerArgs, &timerHandle);
     /* Create subtasks */
     xTaskCreate(rx_interrupt_task, "rx_interrupt_task", 4096, NULL, 
-                RX_INTERRUPT_PRIO, &checkBusTaskHandle);
+                RX_INTERRUPT_PRIO, &rxInterruptTaskHandle);
     xTaskCreate(check_bus_task, "check_bus_task", 2048, NULL, 
-                CHECK_BUS_PRIO, &rxInterruptTaskHandle);
-    xTaskCreate(uart_rx_interrupt_task, "uart_rx_interrupt_task", 4096, NULL,
+                CHECK_BUS_PRIO, &checkBusTaskHandle);
+    xTaskCreate(uart_rx_interrupt_task, "uart_rx_interrupt", 4096, NULL,
                 UART_RX_INTERRUPT_PRIO, &uartRxInterruptTaskHandle);
 
     while(reset == 0)
@@ -146,6 +176,7 @@ void main_task(void *arg)
     vTaskDelete(uartRxInterruptTaskHandle);
     can_stop_module();
     can_uninstall_module();
+    usb_serial_jtag_driver_uninstall();
     esp_restart();
 }
 
