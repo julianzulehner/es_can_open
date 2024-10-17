@@ -32,6 +32,19 @@
 #define LED GPIO_NUM_8
 #define BUF_SIZE 1024
 
+typedef enum {
+    STOP,
+    RUNNING,
+    ERROR,
+} interface_state_t;
+
+typedef struct {
+    interface_state_t state;
+    twai_message_t rxMsg;
+    twai_message_t txMsg;
+    twai_status_info_t twaiStatus;
+} interface_t;
+
 TaskHandle_t mainTaskHandle;
 TaskHandle_t uartRxInterruptTaskHandle;
 TaskHandle_t rxInterruptTaskHandle;
@@ -40,21 +53,26 @@ esp_timer_handle_t timerHandle;
 twai_status_info_t controllerStatus;
 twai_message_t rxMsg;
 twai_message_t txMsg;
+interface_t interface;
 int reset = 0;
 //uint8_t* buffer;
 uint8_t counter = 0;
+esp_err_t err;
 
-void test_fun(twai_message_t * msg){
+
+
+void test_fun(twai_message_t * msg)
+{
     printf("%d\n", msg->data[0]);
 }
-void send_twai_message(const twai_message_t *msg)
+
+void send_can_msg_via_uart(const twai_message_t *msg)
 {
     uint8_t buffer[sizeof(twai_message_t)];
     memcpy(buffer, msg, sizeof(twai_message_t));
     usb_serial_jtag_write_bytes(buffer, sizeof(twai_message_t), 
-                                pdMS_TO_TICKS(20));
+                                    pdMS_TO_TICKS(20));
 }
-
 
 void toggle_led(void *arg){
     gpio_set_level(LED, 0);
@@ -71,7 +89,7 @@ void rx_interrupt_task(void *arg)
         printf("ERROR: CAN RX Error\n");
     } else {
         esp_timer_start_once(timerHandle, 0);
-        twai_message_to_serial(&rxMsg);
+        send_can_msg_via_uart(&rxMsg);
     }
     vTaskDelay(1);
     }
@@ -80,28 +98,14 @@ void rx_interrupt_task(void *arg)
 void uart_rx_interrupt_task(void *arg)
 {
     uint8_t *rxBuffer = (uint8_t *) malloc(BUF_SIZE);
-    //buffer = (uint8_t *) malloc(20);
-    //if (buffer == NULL) {
-     //   printf("ERROR: Buffer could not be allocated\n");
-    //}
     while(1)
     {
         int length = usb_serial_jtag_read_bytes(rxBuffer, (BUF_SIZE-1), 
                      pdMS_TO_TICKS(1000));
-        if (length > 0) 
+        if (length == sizeof(twai_message_t)) 
         {   
-            counter ++;
-            txMsg.data[0] = counter;
-            txMsg.data[1] = 0x02;
-            txMsg.data[2] = 0x03;
-            txMsg.data[3] = 0x04;
-            txMsg.data[4] = 0x05;
-            txMsg.data[5] = 0x06;
-            txMsg.data[6] = 0x07;
-            txMsg.data[7] = 0x08;
-            txMsg.data_length_code = 8;
-            txMsg.identifier = 0x80;
-            send_twai_message(&txMsg);
+            memcpy(&txMsg, rxBuffer, sizeof(twai_message_t));
+            twai_transmit(&txMsg, portMAX_DELAY);
             esp_timer_start_once(timerHandle, 0);
 
         }
@@ -111,17 +115,19 @@ void uart_rx_interrupt_task(void *arg)
     
 }
 
+
 /* TASK THAT CHECKS THE HEALTH OF THE CAN CONTROLLER */
 void check_bus_task(void *arg)
 {
     while(1)
     {
-        ESP_ERROR_CHECK(twai_get_status_info(&controllerStatus));
+        twai_get_status_info(&controllerStatus);
         if((controllerStatus.tx_error_counter != 0 )|
            (controllerStatus.rx_error_counter != 0)){
             printf("INFO: TX Error Nr.=%lu, RX Error Nr.=%lu\n", 
             controllerStatus.tx_error_counter,
             controllerStatus.rx_error_counter);
+
            }
         vTaskDelay(CHECK_CAN_BUS_PERIOD);
     }
@@ -132,20 +138,15 @@ void main_task(void *arg)
 {
     esp_task_wdt_add(mainTaskHandle);
     
-    can_config_module(); // configuration in CANopen.h
-    can_start_module();
-
     // Set LED gpio as output
     gpio_set_direction(LED, GPIO_MODE_OUTPUT);
     gpio_set_level(LED, 1);
-
+    
     // Configure USB SERIAL JTAG
     usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
         .rx_buffer_size = BUF_SIZE,
         .tx_buffer_size = BUF_SIZE,
     };
-    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-
 
     /* Create timers */
     esp_timer_create_args_t timerArgs = {
@@ -153,15 +154,22 @@ void main_task(void *arg)
         .dispatch_method = ESP_TIMER_TASK,
         .name = "toggle_led_timer",
     };
-
     esp_timer_create(&timerArgs, &timerHandle);
+
+    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+
+    can_config_module(); // configuration in CANopen.h
+    
+    
+    xTaskCreate(uart_rx_interrupt_task, "uart_rx_interrupt", 4096, NULL,
+                UART_RX_INTERRUPT_PRIO, &uartRxInterruptTaskHandle);
+
+    can_start_module();
     /* Create subtasks */
     xTaskCreate(rx_interrupt_task, "rx_interrupt_task", 4096, NULL, 
                 RX_INTERRUPT_PRIO, &rxInterruptTaskHandle);
-    xTaskCreate(check_bus_task, "check_bus_task", 2048, NULL, 
-                CHECK_BUS_PRIO, &checkBusTaskHandle);
-    xTaskCreate(uart_rx_interrupt_task, "uart_rx_interrupt", 4096, NULL,
-                UART_RX_INTERRUPT_PRIO, &uartRxInterruptTaskHandle);
+    //xTaskCreate(check_bus_task, "check_bus_task", 2048, NULL, 
+    //            CHECK_BUS_PRIO, &checkBusTaskHandle);
 
     while(reset == 0)
     {

@@ -34,15 +34,16 @@ void can_print_rx_message(twai_message_t *msg){
 
 /* Transmits and prints the message to stdout*/
 void can_transmit(twai_message_t *msg){
-    ESP_ERROR_CHECK(twai_transmit(msg, TX_TIMEOUT));
+    twai_transmit(msg, TX_TIMEOUT);
     can_print_tx_message(msg);
 };
+
 
 /* Config the CAN module */
 void can_config_module(void){
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX, CAN_RX, TWAI_MODE_NORMAL);
-    g_config.rx_queue_len = 30;
-    g_config.tx_queue_len = 30;
+    g_config.rx_queue_len = 50;
+    g_config.tx_queue_len = 50;
     twai_timing_config_t t_config = CAN_BAUD_RATE;
     twai_filter_config_t f_config = {
         .acceptance_mask = CAN_ACCEPTANCE_MASK,

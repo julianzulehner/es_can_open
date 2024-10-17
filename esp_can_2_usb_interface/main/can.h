@@ -16,10 +16,12 @@
 #define CAN_RX GPIO_NUM_2
 #define CAN_NODE_ID 127
 #define CAN_BAUD_RATE TWAI_TIMING_CONFIG_125KBITS()
-#define CAN_ACCEPTANCE_MASK (0b00010000000 << 5) | 0b11111 | (0b00111111111 << 21) | 0b11111 << 16
-#define CAN_ACCEPTANCE_CODE ((0x0 | 0x80) << 5) | (0b11111111111<< 21)
-#define CAN_SINGLE_FILTER false
+#define CAN_ACCEPTANCE_MASK 0xFFFFFFFF
+#define CAN_ACCEPTANCE_CODE 0
+#define CAN_SINGLE_FILTER true
 #define TX_TIMEOUT pdMS_TO_TICKS(500)
+
+
 
 /* Prints a can rx message to the standard output*/
 void can_print_rx_message(twai_message_t *msg);
@@ -35,6 +37,12 @@ void can_start_module(void);
 
 /* Transmits message and prints it to stdout */
 void can_transmit(twai_message_t *msg);
+
+/* Starts periodic message */
+//void can_transmit_periodic(void handle, twai_message_t *msg, int intervall);
+
+/* Stops periodic message */
+//void can_periodic_stop(void handle);   
 
 /* Stops the can module */
 void can_stop_module(void);

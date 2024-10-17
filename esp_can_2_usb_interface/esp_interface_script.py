@@ -1,46 +1,28 @@
 from interface import ESP32Bus
 import asyncio
 import time
+from can import Message
 
-INTERVALL = 0.005 # in seconds
-# class TwaiMessage:
-#     def __init__(self, flags, identifier, data_length_code, data):
-#         self.flags = flags
-#         self.identifier = identifier
-#         self.data_length_code = data_length_code
-#         self.data = data 
 
-#     @classmethod
-#     def from_bytes(cls, data):
-#         flags, identifier, data_length_code = struct.unpack('I I B', data[:9])
-#         data = struct.unpack(f'{data_length_code}B', data[9:9+data_length_code])
-#         return cls(flags, identifier, data_length_code, data)
-    
-#ser = serial.Serial("/dev/ttyACM0", baudrate=115200, timeout=0.1)
-bus = ESP32Bus(channel="/dev/ttyACM0", extended=False, bitrate=125000)
+INTERVALL = 0.1 # in seconds
+bus = ESP32Bus(channel="/dev/ttyACM0", extended=False, bitrate=125000, receive_own_messages=True)
 
 
 async def read():
     while True:
 
         msg = bus.recv(timeout=INTERVALL)
-        print(msg)
-        #res = ser.read(20)
-        #if res:
-            #msg = TwaiMessage.from_bytes(res)
-            #print(f"Flags: {msg.flags}, Identifier: {msg.identifier}, DLC: {msg.data_length_code}, Data: {msg.data}")
-
+        if msg:
+            print(msg)
 
         await asyncio.sleep(INTERVALL)
 
 async def write():
     while True:
-        msg = b"Test"
-        #ser.write(msg)
-        bus._ser.write(msg)
-
-        #print("Message Sent")
-        await asyncio.sleep(INTERVALL)
+        msg = Message(arbitration_id = 0x80, is_extended_id=False, is_remote_frame=False, 
+                      data=[1,2,3,4,5,6,7], dlc=7)
+        bus.send(msg, 1)
+        await asyncio.sleep(3)
 
 async def main():
     write_task = asyncio.create_task(write())
